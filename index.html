@@ -2309,7 +2309,7 @@ async function joinRandomQueue() {
       <button class="btn danger" style="margin-top:20px;" onclick="leaveQueue()">Leave Queue</button>
     </div>`;
 
-  // Try to find an open waiting duel
+  // Try to find an open waiting duel (not cancelled)
   const existing = await sbFetch(`/rest/v1/duels?status=eq.waiting&player_b=is.null&player_a=neq.${encodeURIComponent(u)}&select=id,player_a&limit=1`);
 
   if (existing.ok && existing.data?.length) {
@@ -2349,9 +2349,12 @@ async function startChallengeDuel(targetUsername) {
     </div>`;
   const r = await sbFetch('/rest/v1/duels', {
     method: 'POST', prefer: 'return=representation',
-    body: JSON.stringify({ player_a: u, player_b: targetUsername, difficulty: diff, status: 'challenged' }),
+    body: JSON.stringify({ player_a: u, player_b: targetUsername, difficulty: 'hard', status: 'challenged' }),
   });
-  if (r.ok && r.data?.[0]) pollForOpponent(r.data[0].id);
+  if (r.ok && r.data?.[0]) {
+    pendingDuelId = r.data[0].id;
+    pollForOpponent(r.data[0].id);
+  }
 }
 
 function pollForOpponent(duelId) {
@@ -2371,8 +2374,9 @@ function pollForOpponent(duelId) {
 async function leaveQueue() {
   clearInterval(duelPollInterval);
   if (pendingDuelId) {
-    await sbFetch(`/rest/v1/duels?id=eq.${pendingDuelId}&status=eq.waiting`, {
-      method: 'DELETE',
+    await sbFetch(`/rest/v1/duels?id=eq.${pendingDuelId}`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: JSON.stringify({ status: 'cancelled' }),
     }).catch(() => {});
     pendingDuelId = null;
   }
