@@ -1,0 +1,2982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChromaReflex — Reaction Training</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2347c8ff'/%3E%3Cstop offset='100%25' stop-color='%2347ff96'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='15' fill='url(%23g)'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #222230;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --accent: #c8ff47;
+    --accent2: #ff6b47;
+    --radius: 4px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── SCREENS ── */
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ── NAV ── */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 40px; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.12em; color: var(--accent); }
+  .logo span { color: var(--text); }
+  .nav-btns { display: flex; gap: 12px; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 10px 22px; border: 1px solid var(--border); background: transparent;
+    color: var(--text); font-family: 'Space Mono', monospace; font-size: 0.75rem;
+    letter-spacing: 0.08em; cursor: pointer; border-radius: var(--radius);
+    transition: all 0.15s; text-transform: uppercase;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary {
+    background: var(--accent); color: #0a0a0f; border-color: var(--accent);
+    font-weight: 700;
+  }
+  .btn.primary:hover { background: #d4ff5f; border-color: #d4ff5f; color: #0a0a0f; }
+  .btn.danger { border-color: var(--accent2); color: var(--accent2); }
+  .btn.danger:hover { background: var(--accent2); color: #fff; }
+
+  /* ── HOME SCREEN ── */
+  #screen-home {
+    justify-content: center; align-items: center;
+    background: radial-gradient(ellipse at 60% 40%, #1a1a2e 0%, var(--bg) 70%);
+  }
+  .home-inner { text-align: center; max-width: 520px; padding: 40px; }
+  .home-inner h1 {
+    font-size: clamp(2.8rem, 6vw, 4.5rem); font-weight: 800;
+    line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 16px;
+  }
+  .home-inner h1 .hl { color: var(--accent); }
+  .home-inner p {
+    font-family: 'Space Mono', monospace; font-size: 0.8rem;
+    color: var(--muted); line-height: 1.8; margin-bottom: 36px;
+  }
+  .home-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  /* ── AUTH SCREEN ── */
+  #screen-auth {
+    justify-content: center; align-items: center;
+  }
+  .auth-box {
+    width: 360px; border: 1px solid var(--border); padding: 40px;
+    background: var(--surface); border-radius: 8px;
+  }
+  .auth-box h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+  .auth-box p { font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--muted); margin-bottom: 28px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .field input {
+    width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: 'Space Mono', monospace; font-size: 0.82rem;
+    border-radius: var(--radius); outline: none; transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .auth-toggle { font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--muted); margin-top: 16px; text-align: center; }
+  .auth-toggle a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .auth-toggle a:hover { text-decoration: underline; }
+  .auth-error { font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--accent2); margin-top: 10px; min-height: 16px; }
+
+  /* ── GAME SCREEN ── */
+  #screen-game { align-items: stretch; }
+  #screen-game nav { position: relative; z-index: 10; }
+
+  .game-main {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px; gap: 32px;
+  }
+  .game-status {
+    font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.12em; text-align: center;
+  }
+  .game-status .round-num { color: var(--accent); font-weight: 700; font-size: 1rem; }
+
+  .swatch-wrap {
+    position: relative; width: min(480px, 80vw); height: min(480px, 80vw);
+    cursor: crosshair;
+  }
+  .swatch {
+    width: 100%; height: 100%; border-radius: 50%;
+    box-shadow: 0 0 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04);
+    transition: none;
+  }
+  .click-hint {
+    position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%);
+    font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted);
+    white-space: nowrap; opacity: 0.6;
+  }
+
+  /* ripple */
+  .ripple {
+    position: absolute; border-radius: 50%; background: rgba(255,255,255,0.25);
+    transform: scale(0); animation: ripple-anim 0.5s ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes ripple-anim {
+    to { transform: scale(3); opacity: 0; }
+  }
+
+  /* false-start pop */
+  .false-start-pop {
+    position: absolute; inset: 0; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(255, 60, 30, 0.18);
+    backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.12s;
+    z-index: 5;
+  }
+  .false-start-pop.visible { opacity: 1; pointer-events: none; }
+  .false-start-pop .fs-icon {
+    font-size: 2rem; line-height: 1; margin-bottom: 8px;
+    animation: fs-shake 0.35s ease;
+  }
+  .false-start-pop .fs-text {
+    font-family: 'Space Mono', monospace; font-size: 0.72rem;
+    color: #fff; text-align: center; letter-spacing: 0.05em;
+    text-transform: uppercase; line-height: 1.5;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+  }
+  .false-start-pop .fs-sub {
+    font-family: 'Space Mono', monospace; font-size: 0.62rem;
+    color: rgba(255,255,255,0.55); margin-top: 4px; text-align: center;
+  }
+  /* pulsing red ring on the swatch */
+  .swatch-wrap.false-start .swatch {
+    box-shadow: 0 0 0 3px var(--accent2), 0 0 60px rgba(255,80,40,0.5);
+    animation: fs-ring-pulse 0.4s ease;
+  }
+  @keyframes fs-ring-pulse {
+    0%   { box-shadow: 0 0 0 0px var(--accent2), 0 0 80px rgba(255,80,40,0.8); }
+    60%  { box-shadow: 0 0 0 6px var(--accent2), 0 0 50px rgba(255,80,40,0.4); }
+    100% { box-shadow: 0 0 0 3px var(--accent2), 0 0 60px rgba(255,80,40,0.3); }
+  }
+  @keyframes fs-shake {
+    0%  { transform: rotate(0deg) scale(1); }
+    20% { transform: rotate(-12deg) scale(1.2); }
+    50% { transform: rotate(10deg) scale(1.15); }
+    75% { transform: rotate(-6deg) scale(1.05); }
+    100%{ transform: rotate(0deg) scale(1); }
+  }
+
+  .rep-dots {
+    display: flex; gap: 10px;
+  }
+  .rep-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--border);
+    transition: background 0.3s;
+  }
+  .rep-dot.done { background: var(--accent); }
+  .rep-dot.active { background: var(--muted); box-shadow: 0 0 8px var(--muted); }
+
+  /* ── RESULTS SCREEN ── */
+  #screen-results { justify-content: center; align-items: center; }
+  .results-box {
+    width: min(540px, 90vw); border: 1px solid var(--border);
+    background: var(--surface); border-radius: 8px; overflow: hidden;
+  }
+  .results-header {
+    padding: 32px 36px 24px; border-bottom: 1px solid var(--border);
+  }
+  .results-header h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 4px; }
+  .results-header p { font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+  .results-avg {
+    padding: 24px 36px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .results-avg .big { font-size: 3.5rem; font-weight: 800; color: var(--accent); line-height: 1; }
+  .results-avg .unit { font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--muted); }
+  .results-reps { padding: 20px 36px; border-bottom: 1px solid var(--border); }
+  .results-reps h3 { font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
+  .rep-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0; border-bottom: 1px solid var(--border);
+    font-family: 'Space Mono', monospace; font-size: 0.78rem;
+  }
+  .rep-row:last-child { border-bottom: none; }
+  .rep-row .label { color: var(--muted); }
+  .rep-row .val { color: var(--text); }
+  .rep-row .bar-wrap { flex: 1; margin: 0 16px; height: 8px; background: var(--border); border-radius: 2px; overflow: hidden; position: relative; }
+  .rep-row .bar-raw  { position: absolute; inset: 0; height: 100%; background: var(--muted); border-radius: 2px; transition: width 0.6s ease; opacity: 0.4; }
+  .rep-row .bar-adj  { position: absolute; inset: 0; height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.6s ease; }
+  .results-actions { padding: 20px 36px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ── SCOREBOARD SCREEN ── */
+  #screen-scoreboard { justify-content: flex-start; }
+  .scoreboard-main { flex: 1; padding: 40px; max-width: 900px; margin: 0 auto; width: 100%; }
+  .scoreboard-main h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 6px; }
+  .scoreboard-main > p { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--muted); margin-bottom: 32px; }
+
+  /* distribution chart */
+  .dist-section { margin-bottom: 40px; }
+  .dist-section h3 { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+  #dist-canvas { width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: crosshair; }
+
+  /* chart hover tooltip */
+  #dist-tooltip {
+    position: fixed; pointer-events: none; z-index: 500;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px;
+    font-family: 'Space Mono', monospace; font-size: 0.68rem;
+    color: var(--text); line-height: 1.7;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    max-width: 220px; opacity: 0; transition: opacity 0.1s;
+    white-space: nowrap;
+  }
+  #dist-tooltip.visible { opacity: 1; }
+
+  /* leaderboard table */
+  .lb-table { width: 100%; border-collapse: collapse; }
+  .lb-table th {
+    font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em; text-align: left;
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+  }
+  .lb-table td {
+    font-family: 'Space Mono', monospace; font-size: 0.78rem;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text);
+  }
+  .lb-table tr:last-child td { border-bottom: none; }
+  .lb-table tr.me td { color: var(--accent); }
+  .lb-rank { color: var(--muted); }
+  .lb-medal { font-size: 1rem; }
+  .username-link {
+    cursor: pointer; color: var(--text);
+    border-bottom: 1px solid transparent; transition: border-color 0.15s, color 0.15s;
+  }
+  .username-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .no-data { font-family: 'Space Mono', monospace; font-size: 0.78rem; color: var(--muted); padding: 20px 0; }
+
+  /* ── LEADERBOARD TABS ── */
+  .lb-tabs {
+    display: flex; gap: 0; margin-bottom: 32px;
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden; width: fit-content;
+  }
+  .lb-tab {
+    padding: 9px 22px; border: none; background: transparent;
+    font-family: 'Space Mono', monospace; font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+    color: var(--muted); transition: all 0.15s; border-right: 1px solid var(--border);
+  }
+  .lb-tab:last-child { border-right: none; }
+  .lb-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .lb-tab.active.easy   { background: rgba(71,255,150,0.12); color: #47ff96; }
+  .lb-tab.active.medium { background: rgba(255,200,71,0.12); color: #ffc847; }
+  .lb-tab.active.hard   { background: rgba(255,71,71,0.12);  color: #ff4747; }
+
+  /* ── SETTINGS SCREEN ── */
+  #screen-settings { justify-content: flex-start; }
+  .settings-main { flex: 1; padding: 40px; max-width: 600px; margin: 0 auto; width: 100%; }
+  .settings-main h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 6px; }
+  .settings-main > p { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--muted); margin-bottom: 36px; }
+  .settings-section { margin-bottom: 40px; }
+  .settings-section h3 {
+    font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .diff-cards { display: flex; flex-direction: column; gap: 12px; }
+  .diff-card {
+    border: 1px solid var(--border); border-radius: 6px; padding: 20px 24px;
+    cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden;
+    background: var(--surface);
+  }
+  .diff-card:hover { border-color: var(--muted); }
+  .diff-card.selected { border-color: var(--accent); background: rgba(200,255,71,0.04); }
+  .diff-card.selected::before {
+    content: '✓'; position: absolute; top: 18px; right: 20px;
+    font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--accent); font-weight: 700;
+  }
+  .diff-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .diff-badge {
+    font-family: 'Space Mono', monospace; font-size: 0.65rem; font-weight: 700;
+    padding: 3px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .diff-badge.easy   { background: rgba(71,255,150,0.15); color: #47ff96; border: 1px solid rgba(71,255,150,0.3); }
+  .diff-badge.medium { background: rgba(255,200,71,0.15); color: #ffc847; border: 1px solid rgba(255,200,71,0.3); }
+  .diff-badge.hard   { background: rgba(255,71,71,0.15);  color: #ff4747; border: 1px solid rgba(255,71,71,0.3); }
+  .diff-card-name { font-size: 1rem; font-weight: 700; }
+  .diff-card-desc { font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
+  .diff-stats { margin-top: 12px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .diff-stat { font-family: 'Space Mono', monospace; font-size: 0.68rem; }
+  .diff-stat .ds-label { color: var(--muted); }
+  .diff-stat .ds-val { color: var(--text); margin-left: 4px; }
+
+  /* ── PROFILE SCREEN ── */
+  #screen-profile { justify-content: flex-start; }
+  .profile-main { flex: 1; padding: 40px; max-width: 860px; margin: 0 auto; width: 100%; }
+
+  .profile-hero {
+    display: flex; align-items: center; gap: 20px;
+    margin-bottom: 40px; padding-bottom: 28px; border-bottom: 1px solid var(--border);
+  }
+  .profile-avatar {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: linear-gradient(135deg, #47c8ff, #47ff96);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; font-weight: 800; color: #0a0a0f; flex-shrink: 0;
+    font-family: 'Syne', sans-serif;
+  }
+  .profile-hero-text h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 2px; }
+  .profile-hero-text p { font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+
+  .profile-diff-section { margin-bottom: 52px; }
+  .profile-diff-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  }
+  .profile-diff-header h3 { font-size: 1.1rem; font-weight: 800; }
+  .profile-stat-row {
+    display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .profile-stat {
+    padding: 12px 18px; border: 1px solid var(--border);
+    background: var(--surface); border-radius: 6px;
+    font-family: 'Space Mono', monospace;
+  }
+  .profile-stat .ps-val { font-size: 1.2rem; font-weight: 700; color: var(--accent); display: block; }
+  .profile-stat .ps-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .profile-canvas-wrap { margin-bottom: 20px; }
+  .profile-canvas-wrap h4 {
+    font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px;
+  }
+  .profile-canvas { width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+
+  .profile-top10 h4 {
+    font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px;
+  }
+  .profile-scores-list { display: flex; flex-direction: column; gap: 0; }
+  .profile-score-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    font-family: 'Space Mono', monospace; font-size: 0.75rem;
+  }
+  .profile-score-row:last-child { border-bottom: none; }
+  .profile-score-rank { color: var(--muted); width: 28px; flex-shrink: 0; }
+  .profile-score-val { font-weight: 700; color: var(--accent); }
+  .profile-score-raw { color: var(--muted); font-size: 0.68rem; }
+  .profile-score-bar-wrap { flex: 1; margin: 0 14px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .profile-score-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+
+  .profile-empty { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--muted); padding: 12px 0; }
+  .profile-loading { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--muted); padding: 20px 0; }
+
+  /* ── DUEL & FRIENDS CSS ── */
+  #screen-duel-lobby, #screen-duel-game, #screen-duel-result, #screen-comp-lb, #screen-friends { justify-content: flex-start; }
+  .duel-lobby-main, .duel-result-main, .comp-lb-main, .friends-main { flex:1; padding:40px; max-width:700px; margin:0 auto; width:100%; }
+  .duel-lobby-main h2, .comp-lb-main h2, .friends-main h2 { font-size:1.8rem; font-weight:800; margin-bottom:6px; }
+  .duel-lobby-main > p, .comp-lb-main > p, .friends-main > p { font-family:'Space Mono',monospace; font-size:0.75rem; color:var(--muted); margin-bottom:28px; }
+  .queue-cards { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:32px; }
+  .queue-card { flex:1; min-width:200px; border:1px solid var(--border); border-radius:8px; padding:22px 24px; background:var(--surface); cursor:pointer; transition:all 0.15s; }
+  .queue-card:hover { border-color:var(--accent); }
+  .queue-card h3 { font-size:1rem; font-weight:700; margin-bottom:6px; }
+  .queue-card p { font-family:'Space Mono',monospace; font-size:0.7rem; color:var(--muted); line-height:1.6; }
+  .queue-card.locked { opacity:0.4; cursor:not-allowed; }
+  .queue-card.locked:hover { border-color:var(--border); }
+  .queue-waiting { text-align:center; padding:40px 20px; }
+  .queue-pulse { width:64px; height:64px; border-radius:50%; border:3px solid var(--accent); margin:0 auto 20px; animation:qpulse 1.4s ease-in-out infinite; }
+  @keyframes qpulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.5} }
+  .queue-waiting h3 { font-size:1.2rem; font-weight:700; margin-bottom:8px; }
+  .queue-waiting p { font-family:'Space Mono',monospace; font-size:0.75rem; color:var(--muted); }
+  #screen-duel-game { align-items:stretch; }
+  #screen-duel-game nav { position:relative; z-index:10; }
+  .duel-game-main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px 40px; gap:20px; }
+  .duel-scoreboard { display:flex; align-items:center; border:1px solid var(--border); border-radius:8px; overflow:hidden; font-family:'Space Mono',monospace; width:min(480px,90vw); }
+  .duel-player { flex:1; padding:14px 18px; text-align:center; background:var(--surface); transition:background 0.25s; }
+  .duel-player.winner-flash { background:rgba(200,255,71,0.1); }
+  .duel-player-name { font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:2px; }
+  .duel-player-score { font-size:2rem; font-weight:800; color:var(--text); }
+  .duel-player.me .duel-player-name { color:var(--accent); }
+  .duel-sep { width:1px; background:var(--border); align-self:stretch; display:flex; align-items:center; justify-content:center; padding:0 14px; font-size:0.75rem; color:var(--muted); }
+  .duel-round-info { font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; text-align:center; }
+  .duel-round-info .rnd { color:var(--accent); font-weight:700; font-size:0.9rem; }
+  .duel-result-box { max-width:440px; margin:0 auto; }
+  .duel-result-outcome { font-size:3rem; margin-bottom:8px; text-align:center; }
+  .duel-result-box h2 { font-size:2rem; font-weight:800; margin-bottom:4px; text-align:center; }
+  .duel-result-box > p { font-family:'Space Mono',monospace; font-size:0.8rem; color:var(--muted); margin-bottom:18px; text-align:center; }
+  .duel-lp-change { display:inline-block; padding:7px 18px; border-radius:6px; margin-bottom:24px; font-family:'Space Mono',monospace; font-size:0.82rem; font-weight:700; }
+  .duel-lp-change.win  { background:rgba(200,255,71,0.1); color:var(--accent);  border:1px solid rgba(200,255,71,0.3); }
+  .duel-lp-change.loss { background:rgba(255,107,71,0.1); color:var(--accent2); border:1px solid rgba(255,107,71,0.3); }
+  .duel-rep-breakdown { margin-bottom:24px; }
+  .duel-rep-breakdown h4 { font-family:'Space Mono',monospace; font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; }
+  .duel-rep-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--border); font-family:'Space Mono',monospace; font-size:0.75rem; }
+  .duel-rep-row:last-child { border-bottom:none; }
+  .duel-result-actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .comp-lb-tabs { display:flex; gap:0; margin-bottom:28px; border:1px solid var(--border); border-radius:6px; overflow:hidden; width:fit-content; }
+  .comp-lb-tab { padding:9px 22px; border:none; background:transparent; font-family:'Space Mono',monospace; font-size:0.72rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; color:var(--muted); transition:all 0.15s; border-right:1px solid var(--border); }
+  .comp-lb-tab:last-child { border-right:none; }
+  .comp-lb-tab.active { background:rgba(200,255,71,0.1); color:var(--accent); }
+  .friend-input-row { display:flex; gap:10px; margin-bottom:20px; }
+  .friend-input-row input { flex:1; padding:10px 14px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:'Space Mono',monospace; font-size:0.82rem; border-radius:var(--radius); outline:none; transition:border-color 0.15s; }
+  .friend-input-row input:focus { border-color:var(--accent); }
+  .friend-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-family:'Space Mono',monospace; font-size:0.78rem; }
+  .friend-row:last-child { border-bottom:none; }
+  .friend-row .fr-name { cursor:pointer; color:var(--text); }
+  .friend-row .fr-name:hover { color:var(--accent); }
+  .friend-row .fr-actions { display:flex; gap:8px; }
+  .friend-section-title { font-family:'Space Mono',monospace; font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin:20px 0 10px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .notif-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent2); margin-left:5px; vertical-align:middle; }
+
+  #toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 20px; border-radius: var(--radius); font-family: 'Space Mono', monospace;
+    font-size: 0.75rem; opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 999;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── GAME NAV INFO PILLS ── */
+  .game-nav-info {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .nav-pill {
+    display: flex; align-items: center; gap: 7px;
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface);
+    font-family: 'Space Mono', monospace; font-size: 0.7rem;
+  }
+  .nav-pill .pill-label { color: var(--muted); letter-spacing: 0.06em; }
+  .nav-pill .pill-val   { color: var(--text); font-weight: 700; }
+  .nav-pill.diff-easy   { border-color: rgba(71,255,150,0.3);  background: rgba(71,255,150,0.06); }
+  .nav-pill.diff-easy   .pill-val { color: #47ff96; }
+  .nav-pill.diff-medium { border-color: rgba(255,200,71,0.3);  background: rgba(255,200,71,0.06); }
+  .nav-pill.diff-medium .pill-val { color: #ffc847; }
+  .nav-pill.diff-hard   { border-color: rgba(255,71,71,0.3);   background: rgba(255,71,71,0.06); }
+  .nav-pill.diff-hard   .pill-val { color: #ff4747; }
+
+  /* ── INSTRUCTIONS MODAL ── */
+  #modal-instructions {
+    position: fixed; inset: 0; z-index: 9000;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(5,5,10,0.85); backdrop-filter: blur(6px);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  #modal-instructions.open { opacity: 1; pointer-events: all; }
+
+  .modal-box {
+    width: min(620px, 92vw); max-height: 90vh; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; display: flex; flex-direction: column;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.7);
+  }
+  .modal-header {
+    padding: 32px 36px 0; position: relative;
+  }
+  .modal-header h2 {
+    font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px;
+  }
+  .modal-header h2 .hl { color: var(--accent); }
+  .modal-header p {
+    font-family: 'Space Mono', monospace; font-size: 0.72rem;
+    color: var(--muted); line-height: 1.7;
+  }
+  .modal-body { padding: 24px 36px; flex: 1; }
+
+  .instr-step {
+    display: flex; gap: 16px; margin-bottom: 22px; align-items: flex-start;
+  }
+  .instr-step:last-child { margin-bottom: 0; }
+  .step-num {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(200,255,71,0.1); border: 1px solid rgba(200,255,71,0.25);
+    color: var(--accent); font-family: 'Space Mono', monospace;
+    font-size: 0.72rem; font-weight: 700; display: flex;
+    align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .step-body h4 {
+    font-size: 0.88rem; font-weight: 700; margin-bottom: 3px;
+  }
+  .step-body p {
+    font-family: 'Space Mono', monospace; font-size: 0.7rem;
+    color: var(--muted); line-height: 1.7;
+  }
+  .step-body p strong { color: var(--text); font-weight: 700; }
+
+  .instr-divider {
+    border: none; border-top: 1px solid var(--border); margin: 20px 0;
+  }
+
+  .instr-diffs {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; margin-bottom: 20px;
+  }
+  .instr-diff-pill {
+    padding: 5px 12px; border-radius: 3px;
+    font-family: 'Space Mono', monospace; font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .instr-diff-pill.easy   { background: rgba(71,255,150,0.12); color: #47ff96; border: 1px solid rgba(71,255,150,0.3); }
+  .instr-diff-pill.medium { background: rgba(255,200,71,0.12); color: #ffc847; border: 1px solid rgba(255,200,71,0.3); }
+  .instr-diff-pill.hard   { background: rgba(255,71,71,0.12);  color: #ff4747; border: 1px solid rgba(255,71,71,0.3); }
+
+  .modal-footer {
+    padding: 20px 36px 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    border-top: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .modal-footer label {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted);
+    cursor: pointer; user-select: none;
+  }
+  .modal-footer input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+
+  /* responsive */
+  @media (max-width: 480px) {
+    nav { padding: 16px 20px; }
+    .game-main { padding: 20px; }
+    .scoreboard-main { padding: 20px; }
+    .results-box { border-radius: 0; }
+    .results-header, .results-avg, .results-reps, .results-actions { padding-left: 20px; padding-right: 20px; }
+    .modal-header, .modal-body, .modal-footer { padding-left: 20px; padding-right: 20px; }
+    .game-nav-info .nav-pill .pill-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="screen-home" class="screen active">
+  <div class="home-inner">
+    <h1>Chroma<br><span class="hl">Reflex</span></h1>
+    <p>Train your visual reaction speed.<br>Detect a subtle hue shift — click the moment you see it.</p>
+    <p id="home-diff-line" style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);margin-top:-20px;margin-bottom:36px;"></p>
+    <div class="home-ctas">
+      <button class="btn primary" id="home-play-btn" onclick="startGame()">Play</button>
+      <button class="btn" id="home-guest-btn" onclick="startGuest()">Play as Guest</button>
+      <button class="btn" id="home-auth-btn" onclick="showScreen('auth')">Sign In / Register</button>
+      <button class="btn" id="home-duel-btn" onclick="openDuelLobby()" style="display:none;">⚔ Duel</button>
+      <button class="btn" onclick="showScreen('scoreboard'); activeLbTab=selectedDifficulty; switchLbTab(selectedDifficulty)">Scoreboard</button>
+      <button class="btn" onclick="showScreen('comp-lb'); renderCompLb()">Comp LB</button>
+      <button class="btn" id="home-friends-btn" onclick="showScreen('friends'); loadFriends()" style="display:none;">👥 Friends <span id="home-friends-notif" style="display:none;" class="notif-dot"></span></button>
+      <button class="btn" onclick="showScreen('settings'); renderSettings()">⚙ Settings</button>
+      <button class="btn" onclick="openInstructions()" style="border-color:var(--muted);color:var(--muted);">? How to play</button>
+    </div>
+    <div id="home-user-bar" style="display:none;margin-top:16px;font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);">
+      Signed in as <span id="home-username" style="color:var(--accent);font-weight:700;"></span>
+      &nbsp;·&nbsp;<a id="home-profile-link" style="color:var(--muted);cursor:pointer;text-decoration:underline;">My profile</a>
+      &nbsp;·&nbsp;<a onclick="logout()" style="color:var(--muted);cursor:pointer;text-decoration:underline;">Sign out</a>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH -->
+<div id="screen-auth" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns">
+      <button class="btn" onclick="showScreen('home')">← Back</button>
+    </div>
+  </nav>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;">
+    <div class="auth-box">
+      <h2 id="auth-title">Sign In</h2>
+      <p id="auth-sub">Track your progress and compete on the leaderboard.</p>
+      <div class="field"><label>Username</label><input type="text" id="auth-user" placeholder="your_handle" autocomplete="off"></div>
+      <div class="field" id="auth-pass-wrap"><label>Password</label><input type="password" id="auth-pass" placeholder="••••••••"></div>
+      <div id="auth-error" class="auth-error"></div>
+      <button class="btn primary" style="width:100%;margin-top:8px;" onclick="authSubmit()">Continue →</button>
+      <div class="auth-toggle">
+        <span id="auth-toggle-text">No account? </span><a onclick="toggleAuthMode()">Register</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="game-nav-info">
+      <div class="nav-pill" id="nav-user-pill" style="display:none;">
+        <span class="pill-label">player</span>
+        <span class="pill-val" id="nav-user">—</span>
+      </div>
+      <div class="nav-pill" id="nav-diff-pill">
+        <span class="pill-label">mode</span>
+        <span class="pill-val" id="nav-diff-val">Hard</span>
+      </div>
+      <button class="btn danger" onclick="abortGame()">Quit</button>
+    </div>
+  </nav>
+  <div class="game-main">
+    <div class="game-status">
+      Round <span class="round-num" id="round-display">1</span> / 5
+      <div id="game-msg" style="margin-top:6px;color:var(--muted);">Get ready…</div>
+    </div>
+    <div class="swatch-wrap" id="swatch-wrap">
+      <div class="swatch" id="swatch"></div>
+      <div class="false-start-pop" id="false-start-pop">
+        <div class="fs-icon">🚫</div>
+        <div class="fs-text">Too soon!<br>Wait for the colour change</div>
+        <div class="fs-sub">Rep restarting…</div>
+      </div>
+      <div class="click-hint" id="click-hint">Click anywhere when you see the change</div>
+    </div>
+    <div class="rep-dots" id="rep-dots"></div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="screen-results" class="screen">
+  <div class="results-box">
+    <div class="results-header">
+      <h2>Session Complete</h2>
+      <p id="results-user-line">Guest session</p>
+      <div style="margin-top:12px;padding:10px 14px;background:rgba(200,255,71,0.05);border:1px solid rgba(200,255,71,0.15);border-radius:4px;font-family:'Space Mono',monospace;font-size:0.68rem;color:var(--muted);line-height:1.7;">
+        <span style="color:var(--accent);font-weight:700;">Adjusted time</span> subtracts the perceptual onset offset — the
+        milliseconds the colour was technically changing but still below your eye's detection threshold (ΔE&nbsp;&lt;&nbsp;2.3 JND).
+        This is your true neural + motor reaction time.
+      </div>
+    </div>
+    <div class="results-avg">
+      <div>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <div class="big" id="results-avg-val">—</div>
+          <div class="unit">ms adjusted avg</div>
+        </div>
+        <div id="results-avg-raw" style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);margin-top:4px;"></div>
+      </div>
+    </div>
+    <div class="results-reps">
+      <h3>Rep breakdown</h3>
+      <div id="results-rep-list"></div>
+    </div>
+    <div class="results-actions">
+      <button class="btn primary" onclick="startGame()">Play Again</button>
+      <button class="btn" onclick="showScreen('scoreboard'); activeLbTab=selectedDifficulty; switchLbTab(selectedDifficulty)">Scoreboard</button>
+      <button class="btn" onclick="showScreen('home')">Home</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCOREBOARD -->
+<div id="screen-scoreboard" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns">
+      <button class="btn" onclick="goBack()">← Back</button>
+    </div>
+  </nav>
+  <div class="scoreboard-main">
+    <h2>Leaderboard</h2>
+    <p>Best adjusted reaction time per difficulty.</p>
+
+    <div class="lb-tabs">
+      <button class="lb-tab easy active"   onclick="switchLbTab('easy')"  >Easy</button>
+      <button class="lb-tab medium"        onclick="switchLbTab('medium')">Medium</button>
+      <button class="lb-tab hard"          onclick="switchLbTab('hard')"  >Hard</button>
+    </div>
+
+    <div class="dist-section">
+      <h3 id="dist-label">Reaction distribution (ms)</h3>
+      <canvas id="dist-canvas" height="160"></canvas>
+    </div>
+
+    <table class="lb-table" id="lb-table">
+      <thead><tr>
+        <th>#</th><th>Player</th><th>Best Avg (ms)</th><th>Sessions</th><th>All-time Avg (ms)</th>
+      </tr></thead>
+      <tbody id="lb-body"></tbody>
+    </table>
+    <div id="lb-empty" class="no-data" style="display:none;">No sessions yet on this difficulty. Be the first!</div>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div id="screen-profile" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns">
+      <button class="btn" id="profile-back-btn" onclick="history.back(); showScreen(prevScreen)">← Back</button>
+    </div>
+  </nav>
+  <div class="profile-main" id="profile-main">
+    <div class="profile-loading">Loading profile…</div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="screen-settings" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns">
+      <button class="btn" onclick="showScreen('home')">← Back</button>
+    </div>
+  </nav>
+  <div class="settings-main">
+    <h2>Settings</h2>
+    <p>Adjust difficulty and preferences.</p>
+    <div class="settings-section">
+      <h3>Difficulty</h3>
+      <div class="diff-cards" id="diff-cards"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DUEL LOBBY -->
+<div id="screen-duel-lobby" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns">
+      <button class="btn" onclick="showScreen('home')">← Back</button>
+    </div>
+  </nav>
+  <div class="duel-lobby-main">
+    <h2>Competitive Duel</h2>
+    <p>Race a real opponent on the same circle. First to win 5 rounds takes the match.</p>
+    <div class="queue-cards" id="queue-cards">
+      <div class="queue-card" id="qc-random" onclick="joinRandomQueue()">
+        <h3>⚡ Quick Match</h3>
+        <p>Queue against a random opponent. First available player gets matched.</p>
+      </div>
+      <div class="queue-card" id="qc-friend" onclick="showScreen('friends')">
+        <h3>👥 Challenge Friend</h3>
+        <p>Pick a friend from your list and send them a duel challenge directly.</p>
+      </div>
+    </div>
+    <div id="queue-status"></div>
+    <div style="margin-top:12px;">
+      <span style="font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--muted);">
+        Duels are always played on <strong style="color:#ff4747;">Hard</strong> difficulty
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- DUEL GAME -->
+<div id="screen-duel-game" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="game-nav-info">
+      <div class="nav-pill" id="duel-nav-diff-pill">
+        <span class="pill-label">mode</span>
+        <span class="pill-val" id="duel-nav-diff-val">Easy</span>
+      </div>
+      <button class="btn danger" onclick="forfeitDuel()">Forfeit</button>
+    </div>
+  </nav>
+  <div class="duel-game-main">
+    <div class="duel-scoreboard">
+      <div class="duel-player me" id="duel-p-me">
+        <div class="duel-player-name" id="duel-name-me">You</div>
+        <div class="duel-player-score" id="duel-score-me">0</div>
+      </div>
+      <div class="duel-sep">vs</div>
+      <div class="duel-player" id="duel-p-opp">
+        <div class="duel-player-name" id="duel-name-opp">Opponent</div>
+        <div class="duel-player-score" id="duel-score-opp">0</div>
+      </div>
+    </div>
+    <div class="duel-round-info">
+      Round <span class="rnd" id="duel-round-display">1</span> / 5
+      <div id="duel-game-msg" style="margin-top:5px;">Get ready…</div>
+    </div>
+    <div class="swatch-wrap" id="duel-swatch-wrap" style="width:min(420px,75vw);height:min(420px,75vw);">
+      <div class="swatch" id="duel-swatch"></div>
+      <div class="false-start-pop" id="duel-false-start-pop">
+        <div class="fs-icon">🚫</div>
+        <div class="fs-text">Too soon!<br>Wait for the colour change</div>
+        <div class="fs-sub">Round restarting…</div>
+      </div>
+      <div class="click-hint">Click when you see the change</div>
+    </div>
+    <div class="rep-dots" id="duel-rep-dots"></div>
+  </div>
+</div>
+
+<!-- DUEL RESULT -->
+<div id="screen-duel-result" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns"><button class="btn" onclick="showScreen('home')">Home</button></div>
+  </nav>
+  <div class="duel-lobby-main">
+    <div class="duel-result-box">
+      <div class="duel-result-outcome" id="duel-result-icon">🏆</div>
+      <h2 id="duel-result-title">Victory!</h2>
+      <p id="duel-result-sub">vs opponent</p>
+      <div style="text-align:center;margin-bottom:20px;">
+        <span class="duel-lp-change win" id="duel-lp-badge">+30 LP</span>
+      </div>
+      <div class="duel-rep-breakdown">
+        <h4>Round breakdown</h4>
+        <div id="duel-rep-list"></div>
+      </div>
+      <div class="duel-result-actions">
+        <button class="btn primary" onclick="showScreen('duel-lobby')">Play Again</button>
+        <button class="btn" onclick="showScreen('comp-lb'); renderCompLb()">Comp Leaderboard</button>
+        <button class="btn" onclick="showScreen('home')">Home</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMP LEADERBOARD -->
+<div id="screen-comp-lb" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns"><button class="btn" onclick="goBack()">← Back</button></div>
+  </nav>
+  <div class="comp-lb-main">
+    <h2>Competitive</h2>
+    <p>Ranked duel standings. Win = +30 LP, Loss = −10 LP.</p>
+    <div class="comp-lb-tabs">
+      <button class="comp-lb-tab active" id="clb-tab-lp"     onclick="switchCompTab('lp')">LP Rankings</button>
+      <button class="comp-lb-tab"        id="clb-tab-speed"  onclick="switchCompTab('speed')">Fastest Reaction</button>
+    </div>
+    <table class="lb-table">
+      <thead><tr id="comp-lb-head"></tr></thead>
+      <tbody id="comp-lb-body"></tbody>
+    </table>
+    <div id="comp-lb-empty" class="no-data" style="display:none;">No competitive games yet.</div>
+  </div>
+</div>
+
+<!-- FRIENDS -->
+<div id="screen-friends" class="screen">
+  <nav>
+    <span class="logo">Chroma<span>Reflex</span></span>
+    <div class="nav-btns"><button class="btn" onclick="goBack()">← Back</button></div>
+  </nav>
+  <div class="friends-main">
+    <h2>Friends</h2>
+    <p>Add friends to challenge them to duels.</p>
+    <div class="friend-input-row">
+      <input type="text" id="friend-add-input" placeholder="Enter username…" autocomplete="off">
+      <button class="btn primary" onclick="sendFriendRequest()">Add</button>
+    </div>
+    <div id="friends-list"></div>
+  </div>
+</div>
+
+<!-- INSTRUCTIONS MODAL -->
+<div id="modal-instructions">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Welcome to Chroma<span class="hl">Reflex</span></h2>
+      <p>A precision tool for training your visual reaction speed — built around colour perception science.</p>
+    </div>
+
+    <div class="modal-body">
+
+      <div class="instr-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Watch the circle</h4>
+          <p>A large colour circle appears on screen. Stare at it. At a random moment between <strong>2 and 8 seconds</strong>, it will begin slowly shifting to a completely different hue.</p>
+        </div>
+      </div>
+
+      <div class="instr-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Click the instant you see it change</h4>
+          <p>The moment your eye detects the colour shift, <strong>click anywhere on the circle</strong>. The transition is gradual — not a sudden flash. You're training yourself to catch the very first hint of change.</p>
+        </div>
+      </div>
+
+      <div class="instr-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Don't click early — or the rep restarts</h4>
+          <p>Clicking before the colour starts changing triggers a <strong>false start</strong>. The rep resets and you try again. Anticipating the change is not allowed — only reacting to it.</p>
+        </div>
+      </div>
+
+      <div class="instr-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Your time is perceptually adjusted</h4>
+          <p>The timer starts the moment the colour begins to change — but the first few frames are <strong>below the human eye's detection threshold (ΔE &lt; 2.3 JND)</strong>. That invisible portion is automatically subtracted, so your score reflects true neural + motor reaction time, not physics lag.</p>
+        </div>
+      </div>
+
+      <div class="instr-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h4>5 reps, then your average</h4>
+          <p>Each session is <strong>5 rounds</strong>. At the end you'll see your adjusted average, each rep's raw vs. adjusted time, and how you rank on the leaderboard.</p>
+        </div>
+      </div>
+
+      <hr class="instr-divider">
+
+      <div class="step-body" style="margin-bottom:10px;">
+        <h4>Three difficulty levels</h4>
+        <p style="margin-bottom:10px;">Difficulty controls how fast the colour fades and how close the two colours are — making the change harder to spot.</p>
+      </div>
+      <div class="instr-diffs">
+        <span class="instr-diff-pill easy">Easy — 2s fade · 90° gap</span>
+        <span class="instr-diff-pill medium">Medium — 3s fade · 70° gap</span>
+        <span class="instr-diff-pill hard">Hard — 5s fade · 60° gap</span>
+      </div>
+      <p style="font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--muted);line-height:1.7;">
+        Each difficulty has its <strong style="color:var(--text);">own leaderboard</strong>. Scores are not cross-compared between difficulties.
+      </p>
+
+    </div>
+
+    <div class="modal-footer">
+      <label>
+        <input type="checkbox" id="instr-dont-show"> Don't show this again
+      </label>
+      <button class="btn primary" onclick="closeInstructions()">Got it — let's go →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  DIFFICULTY CONFIG
+// ══════════════════════════════════════════════════
+const DIFFICULTIES = {
+  easy: {
+    id: 'easy',
+    name: 'Easy',
+    desc: 'A fast, obvious colour swing with a wide hue gap. You\'ll see it coming — great for warming up.',
+    transitionDuration: 2000,
+    minHueDist: 90,
+    waitMin: 3000,
+    waitMax: 8000,
+    badgeClass: 'easy',
+    badgeStyle: 'background:rgba(71,255,150,0.15);color:#47ff96;border:1px solid rgba(71,255,150,0.3);',
+    stats: { 'Fade speed': '2 s', 'Min hue gap': '90°', 'Wait': '3 – 8 s' },
+  },
+  medium: {
+    id: 'medium',
+    name: 'Medium',
+    desc: 'A slower fade with a tighter colour gap. The change is there — but you need to stay locked in to catch it early.',
+    transitionDuration: 3000,
+    minHueDist: 70,
+    waitMin: 3000,
+    waitMax: 8000,
+    badgeClass: 'medium',
+    badgeStyle: 'background:rgba(255,200,71,0.15);color:#ffc847;border:1px solid rgba(255,200,71,0.3);',
+    stats: { 'Fade speed': '3 s', 'Min hue gap': '70°', 'Wait': '3 – 8 s' },
+  },
+  hard: {
+    id: 'hard',
+    name: 'Hard',
+    desc: 'A glacially slow fade with a tight hue gap. The change is barely perceptible — the longer it takes, the harder it is to catch.',
+    transitionDuration: 5000,
+    minHueDist: 60,
+    waitMin: 2000,
+    waitMax: 6000,
+    badgeClass: 'hard',
+    badgeStyle: 'background:rgba(255,71,71,0.15);color:#ff4747;border:1px solid rgba(255,71,71,0.3);',
+    stats: { 'Fade speed': '5 s', 'Min hue gap': '60°', 'Wait': '2 – 6 s' },
+  },
+};
+
+let selectedDifficulty = (() => {
+  try { return localStorage.getItem('chromareflex_diff') || 'easy'; } catch(e) { return 'easy'; }
+})();
+function getDiff() { return DIFFICULTIES[selectedDifficulty] || DIFFICULTIES.easy; }
+
+function setDifficulty(id) {
+  selectedDifficulty = id;
+  try { localStorage.setItem('chromareflex_diff', id); } catch(e) {}
+  renderSettings();
+  showToast(`Difficulty set to ${DIFFICULTIES[id].name}`);
+}
+
+function renderSettings() {
+  const container = document.getElementById('diff-cards');
+  container.innerHTML = '';
+  Object.values(DIFFICULTIES).forEach(d => {
+    const card = document.createElement('div');
+    card.className = 'diff-card' + (selectedDifficulty === d.id ? ' selected' : '');
+    card.onclick = () => setDifficulty(d.id);
+    const statsHtml = Object.entries(d.stats).map(([k,v]) =>
+      `<div class="diff-stat"><span class="ds-label">${k}</span><span class="ds-val">${v}</span></div>`
+    ).join('');
+    card.innerHTML = `
+      <div class="diff-card-header">
+        <span class="diff-badge ${d.badgeClass}">${d.name}</span>
+        <span class="diff-card-name">${d.name}</span>
+      </div>
+      <div class="diff-card-desc">${d.desc}</div>
+      <div class="diff-stats">${statsHtml}</div>`;
+    container.appendChild(card);
+  });
+}
+// ══════════════════════════════════════════════════
+//  SUPABASE
+// ══════════════════════════════════════════════════
+const SUPABASE_URL  = 'https://lzcwafetfzhhyvejsogz.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6Y3dhZmV0ZnpoaHl2ZWpzb2d6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4OTA5OTMsImV4cCI6MjA5MDQ2Njk5M30.JdAe0hmBcnWAuampvwWiK1XGvSobnHmCJnjSUtbOnEo';
+
+async function sbFetch(path, opts = {}) {
+  const token = currentUser?.token || SUPABASE_ANON;
+  const res = await fetch(SUPABASE_URL + path, {
+    ...opts,
+    headers: {
+      'apikey': SUPABASE_ANON,
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      ...(opts.prefer ? { 'Prefer': opts.prefer } : {}),
+      ...(opts.extraHeaders || {}),
+    },
+  });
+  const text = await res.text();
+  try { return { ok: res.ok, status: res.status, data: text ? JSON.parse(text) : null }; }
+  catch { return { ok: res.ok, status: res.status, data: text }; }
+}
+
+// ══════════════════════════════════════════════════
+//  AUTH STATE
+// ══════════════════════════════════════════════════
+let currentUser = null; // { username, token }
+let authMode = 'login';
+
+const fakeEmail = u => u.toLowerCase().replace(/[^a-z0-9_]/g,'') + '@chromareflex.app';
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'register' : 'login';
+  document.getElementById('auth-title').textContent = authMode === 'login' ? 'Sign In' : 'Register';
+  document.getElementById('auth-sub').textContent = authMode === 'login'
+    ? 'Track your progress and compete on the leaderboard.'
+    : 'Create an account to save your scores.';
+  document.getElementById('auth-toggle-text').textContent = authMode === 'login' ? 'No account? ' : 'Have an account? ';
+  document.querySelector('.auth-toggle a').textContent = authMode === 'login' ? 'Register' : 'Sign In';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function authSubmit() {
+  const username = document.getElementById('auth-user').value.trim().toLowerCase();
+  const password = document.getElementById('auth-pass').value;
+  const err = document.getElementById('auth-error');
+  err.textContent = '';
+  if (!username) { err.textContent = 'Username required.'; return; }
+  if (username.length < 2) { err.textContent = 'Username too short.'; return; }
+  if (!/^[a-z0-9_]+$/.test(username)) { err.textContent = 'Alphanumeric + underscore only.'; return; }
+  if (!password || password.length < 6) { err.textContent = 'Password must be 6+ characters.'; return; }
+
+  const btn = document.querySelector('.auth-box .btn.primary');
+  btn.textContent = 'Loading…'; btn.disabled = true;
+
+  const email = fakeEmail(username);
+
+  if (authMode === 'register') {
+    const r = await sbFetch('/auth/v1/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, data: { username } }),
+    });
+    if (!r.ok) {
+      const msg = r.data?.msg || r.data?.error_description || r.data?.message || 'Registration failed.';
+      err.textContent = msg.toLowerCase().includes('already') ? 'Username already taken.' : msg;
+      btn.textContent = 'Continue →'; btn.disabled = false;
+      return;
+    }
+    currentUser = { username, token: r.data.access_token };
+    saveSession({ username, refresh_token: r.data.refresh_token });
+    // insert into users table (ignore duplicate errors)
+    await sbFetch('/rest/v1/users', {
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: JSON.stringify({ username, email }),
+    });
+    showToast(`Welcome, ${username}!`);
+    showScreen('home');
+  } else {
+    const r = await sbFetch('/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    if (!r.ok) {
+      err.textContent = 'Wrong username or password.';
+      btn.textContent = 'Continue →'; btn.disabled = false;
+      return;
+    }
+    const uname = r.data?.user?.user_metadata?.username || username;
+    currentUser = { username: uname, token: r.data.access_token };
+    saveSession({ username: uname, refresh_token: r.data.refresh_token });
+    showToast(`Welcome back, ${uname}!`);
+    showScreen('home');
+  }
+  btn.textContent = 'Continue →'; btn.disabled = false;
+}
+
+async function logout() {
+  if (currentUser?.token) {
+    await sbFetch('/auth/v1/logout', { method: 'POST' }).catch(() => {});
+  }
+  currentUser = null;
+  clearSession();
+  showToast('Signed out.');
+  showScreen('home');
+}
+
+// ══════════════════════════════════════════════════
+//  SCREEN ROUTING
+// ══════════════════════════════════════════════════
+let prevScreen = 'home';
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  prevScreen = id;
+  if (id === 'home') {
+    const diff = getDiff();
+    document.getElementById('home-diff-line').innerHTML =
+      `Current difficulty: <span style="${diff.badgeStyle};padding:2px 7px;border-radius:3px;font-weight:700;">${diff.name}</span>`;
+    // show/hide auth vs user bar
+    if (currentUser) {
+      document.getElementById('home-play-btn').style.display = '';
+      document.getElementById('home-guest-btn').style.display = 'none';
+      document.getElementById('home-auth-btn').style.display = 'none';
+      document.getElementById('home-duel-btn').style.display = '';
+      document.getElementById('home-friends-btn').style.display = '';
+      document.getElementById('home-user-bar').style.display = '';
+      document.getElementById('home-username').textContent = currentUser.username;
+      document.getElementById('home-profile-link').onclick = () => openProfile(currentUser.username);
+      checkFriendNotifs();
+    } else {
+      document.getElementById('home-play-btn').style.display = 'none';
+      document.getElementById('home-guest-btn').style.display = '';
+      document.getElementById('home-auth-btn').style.display = '';
+      document.getElementById('home-duel-btn').style.display = 'none';
+      document.getElementById('home-friends-btn').style.display = 'none';
+      document.getElementById('home-user-bar').style.display = 'none';
+    }
+  }
+}
+function goBack() { showScreen('home'); }
+
+// ══════════════════════════════════════════════════
+//  COLOR UTILS
+// ══════════════════════════════════════════════════
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(255 * c).toString(16).padStart(2, '0');
+  };
+  return '#' + f(0) + f(8) + f(4);
+}
+
+function hexToHSL(hex) {
+  let r = parseInt(hex.slice(1,3),16)/255;
+  let g = parseInt(hex.slice(3,5),16)/255;
+  let b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h, s, l = (max+min)/2;
+  if (max===min) { h=s=0; }
+  else {
+    const d = max-min;
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max) {
+      case r: h = ((g-b)/d + (g<b?6:0))/6; break;
+      case g: h = ((b-r)/d + 2)/6; break;
+      case b: h = ((r-g)/d + 4)/6; break;
+    }
+  }
+  return [h*360, s*100, l*100];
+}
+
+function hueDist(h1, h2) {
+  const d = Math.abs(h1 - h2) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+function randomColor() {
+  // Random hue, high-ish saturation, medium lightness so colours are vivid
+  const h = Math.random() * 360;
+  const s = 55 + Math.random() * 30;
+  const l = 42 + Math.random() * 18;
+  return hslToHex(h, s, l);
+}
+
+function randomColorFarFrom(hex, minHueDist = 60) {
+  let attempts = 0;
+  while (attempts < 200) {
+    const c = randomColor();
+    const [h1] = hexToHSL(hex);
+    const [h2] = hexToHSL(c);
+    if (hueDist(h1, h2) >= minHueDist) return c;
+    attempts++;
+  }
+  // fallback: guaranteed opposite hue
+  const [h, s, l] = hexToHSL(hex);
+  return hslToHex((h + 150 + Math.random() * 60) % 360, s, l);
+}
+
+// lerp between two hex colours 0..1
+function lerpHex(a, b, t) {
+  const [h1,s1,l1] = hexToHSL(a);
+  const [h2,s2,l2] = hexToHSL(b);
+  // go the short way around the hue wheel
+  let dh = h2 - h1;
+  if (dh > 180) dh -= 360;
+  if (dh < -180) dh += 360;
+  return hslToHex(h1 + dh * t, s1 + (s2-s1)*t, l1 + (l2-l1)*t);
+}
+
+// ── PERCEPTUAL COLOUR SCIENCE (CIE Lab + Delta-E 2000) ──────────────────────
+// Convert hex → linear sRGB → XYZ D65 → CIE L*a*b*
+function hexToLab(hex) {
+  let r = parseInt(hex.slice(1,3),16)/255;
+  let g = parseInt(hex.slice(3,5),16)/255;
+  let b = parseInt(hex.slice(5,7),16)/255;
+  // linearise sRGB
+  const lin = v => v <= 0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
+  r = lin(r); g = lin(g); b = lin(b);
+  // sRGB D65 → XYZ
+  let X = r*0.4124564 + g*0.3575761 + b*0.1804375;
+  let Y = r*0.2126729 + g*0.7151522 + b*0.0721750;
+  let Z = r*0.0193339 + g*0.1191920 + b*0.9503041;
+  // normalise by D65 white point
+  X /= 0.95047; Y /= 1.00000; Z /= 1.08883;
+  const f = v => v > 0.008856 ? Math.cbrt(v) : (7.787*v + 16/116);
+  return [
+    116*f(Y) - 16,          // L*
+    500*(f(X) - f(Y)),      // a*
+    200*(f(Y) - f(Z)),      // b*
+  ];
+}
+
+// Delta-E 2000 — the industry standard perceptual colour difference
+function deltaE2000(hex1, hex2) {
+  const [L1,a1,b1] = hexToLab(hex1);
+  const [L2,a2,b2] = hexToLab(hex2);
+  const avg_L = (L1+L2)/2;
+  const C1 = Math.sqrt(a1*a1+b1*b1);
+  const C2 = Math.sqrt(a2*a2+b2*b2);
+  const avg_C = (C1+C2)/2;
+  const C7 = Math.pow(avg_C,7);
+  const G = 0.5*(1-Math.sqrt(C7/(C7+Math.pow(25,7))));
+  const a1p = a1*(1+G), a2p = a2*(1+G);
+  const C1p = Math.sqrt(a1p*a1p+b1*b1);
+  const C2p = Math.sqrt(a2p*a2p+b2*b2);
+  const avg_Cp = (C1p+C2p)/2;
+  const h1p = (Math.atan2(b1,a1p)*180/Math.PI+360)%360;
+  const h2p = (Math.atan2(b2,a2p)*180/Math.PI+360)%360;
+  const dHp = Math.abs(h1p-h2p) <= 180 ? h2p-h1p : (h2p<=h1p ? h2p-h1p+360 : h2p-h1p-360);
+  const avg_Hp = Math.abs(h1p-h2p) > 180 ? (h1p+h2p+360)/2 : (h1p+h2p)/2;
+  const dLp = L2-L1, dCp = C2p-C1p;
+  const dHp2 = 2*Math.sqrt(C1p*C2p)*Math.sin(dHp*Math.PI/360);
+  const T = 1
+    - 0.17*Math.cos((avg_Hp-30)*Math.PI/180)
+    + 0.24*Math.cos(2*avg_Hp*Math.PI/180)
+    + 0.32*Math.cos((3*avg_Hp+6)*Math.PI/180)
+    - 0.20*Math.cos((4*avg_Hp-63)*Math.PI/180);
+  const SL = 1 + 0.015*Math.pow(avg_L-50,2)/Math.sqrt(20+Math.pow(avg_L-50,2));
+  const SC = 1 + 0.045*avg_Cp;
+  const SH = 1 + 0.015*avg_Cp*T;
+  const avg_Cp7 = Math.pow(avg_Cp,7);
+  const RC = 2*Math.sqrt(avg_Cp7/(avg_Cp7+Math.pow(25,7)));
+  const dTheta = 30*Math.exp(-Math.pow((avg_Hp-275)/25,2));
+  const RT = -Math.sin(2*dTheta*Math.PI/180)*RC;
+  return Math.sqrt(
+    Math.pow(dLp/SL,2) + Math.pow(dCp/SC,2) + Math.pow(dHp2/SH,2) + RT*(dCp/SC)*(dHp2/SH)
+  );
+}
+
+// Find the ms offset into a transition where ΔE first crosses the JND threshold.
+// JND (Just Noticeable Difference) ≈ 2.3 under normal viewing.
+const JND = 2.3;
+function computePerceptualOffset(startHex, endHex, durationMs) {
+  // Simulate the transition at ~16ms steps (matching 60fps render),
+  // exactly as the browser draws it. Find the first frame where ΔE ≥ JND.
+  // This avoids binary search entirely — no monotonicity assumptions needed.
+  // The HSL lerp is non-linear in Lab space so binary search can badly
+  // overshoot, producing offsets larger than a real human reaction time.
+  const STEP_MS = 16;
+  for (let t_ms = STEP_MS; t_ms <= durationMs; t_ms += STEP_MS) {
+    const t = t_ms / durationMs;
+    const col = lerpHex(startHex, endHex, t);
+    if (deltaE2000(startHex, col) >= JND) {
+      return t_ms;
+    }
+  }
+  // Colour never crosses JND in the transition window — return 0
+  return 0;
+}
+
+// ══════════════════════════════════════════════════
+//  GAME STATE
+// ══════════════════════════════════════════════════
+const REPS = 5;
+// MIN_WAIT, MAX_WAIT, TRANSITION_DURATION, minHueDist now come from getDiff() at runtime
+
+let gameState = null;
+
+function startGuest() { currentUser = null; startGame(); }
+
+function startGame() {
+  const diff = getDiff();
+
+  // nav user pill
+  const userPill = document.getElementById('nav-user-pill');
+  if (currentUser) {
+    document.getElementById('nav-user').textContent = currentUser.username;
+    userPill.style.display = '';
+  } else {
+    userPill.style.display = 'none';
+  }
+
+  // nav difficulty pill
+  const diffPill = document.getElementById('nav-diff-pill');
+  diffPill.className = 'nav-pill diff-' + diff.id;
+  document.getElementById('nav-diff-val').textContent = diff.name;
+
+  gameState = {
+    rep: 0,
+    times: [],
+    diffId: diff.id,
+    startColor: null,
+    endColor: null,
+    transitionStart: null,
+    phase: 'waiting',
+    animFrame: null,
+    waitTimeout: null,
+    clickEnabled: false,
+    earlyClickCount: 0,   // tracks sub-offset clicks on the current rep
+  };
+
+  buildRepDots();
+  showScreen('game');
+  document.getElementById('game-msg').textContent = 'Click the circle the moment you see it change';
+  setTimeout(() => nextRep(), 800);
+}
+
+function buildRepDots() {
+  const wrap = document.getElementById('rep-dots');
+  wrap.innerHTML = '';
+  for (let i = 0; i < REPS; i++) {
+    const d = document.createElement('div');
+    d.className = 'rep-dot' + (i === 0 ? ' active' : '');
+    d.id = 'dot-' + i;
+    wrap.appendChild(d);
+  }
+}
+
+function updateDots(current, done) {
+  for (let i = 0; i < REPS; i++) {
+    const d = document.getElementById('dot-' + i);
+    d.className = 'rep-dot' + (i < done ? ' done' : '') + (i === current ? ' active' : '');
+  }
+}
+
+function nextRep() {
+  if (!gameState) return;
+  const rep = gameState.rep;
+  document.getElementById('round-display').textContent = rep + 1;
+  updateDots(rep, rep);
+
+  const startColor = rep === 0 ? randomColor() : gameState.endColor;
+  const diff = getDiff();
+  const endColor = randomColorFarFrom(startColor, diff.minHueDist);
+  const percOffset = computePerceptualOffset(startColor, endColor, diff.transitionDuration);
+  gameState.startColor = startColor;
+  gameState.endColor = endColor;
+  gameState.percOffset = percOffset;
+  gameState.phase = 'waiting';
+  gameState.clickEnabled = false;
+  gameState.earlyClickCount = 0;
+
+  document.getElementById('swatch').style.background = startColor;
+  document.getElementById('game-msg').textContent = 'Click the circle the moment you see it change';
+  document.getElementById('click-hint').classList.add('visible');
+
+  const wait = diff.waitMin + Math.random() * (diff.waitMax - diff.waitMin);
+  gameState.waitTimeout = setTimeout(() => beginTransition(), wait);
+}
+
+function beginTransition() {
+  if (!gameState || gameState.phase !== 'waiting') return;
+  gameState.phase = 'changing';
+  gameState.transitionStart = performance.now();
+  gameState.clickEnabled = true;
+  animateTransition();
+}
+
+function animateTransition() {
+  if (!gameState || gameState.phase !== 'changing') return;
+  const diff = getDiff();
+  const elapsed = performance.now() - gameState.transitionStart;
+  const t = Math.min(elapsed / diff.transitionDuration, 1);
+  document.getElementById('swatch').style.background = lerpHex(gameState.startColor, gameState.endColor, t);
+  if (t < 1) {
+    gameState.animFrame = requestAnimationFrame(animateTransition);
+  } else {
+    // finished — if no click yet, count as miss (very slow)
+    if (gameState.clickEnabled) {
+      // leave it open; player can still click, just late
+    }
+  }
+}
+
+function triggerFalseStart() {
+  if (!gameState) return;
+  // cancel the pending transition timer
+  clearTimeout(gameState.waitTimeout);
+  cancelAnimationFrame(gameState.animFrame);
+  gameState.phase = 'falsestart';
+  gameState.clickEnabled = false;
+
+  // visual feedback
+  const wrap = document.getElementById('swatch-wrap');
+  const pop = document.getElementById('false-start-pop');
+  wrap.classList.add('false-start');
+  pop.classList.add('visible');
+  document.getElementById('game-msg').textContent = 'Too early! Click only when you see the colour shift';
+
+  setTimeout(() => {
+    wrap.classList.remove('false-start');
+    pop.classList.remove('visible');
+    document.getElementById('swatch').style.background = gameState.startColor;
+    document.getElementById('game-msg').textContent = 'Click the circle the moment you see it change';
+    const diff = getDiff();
+    const wait = diff.waitMin + Math.random() * (diff.waitMax - diff.waitMin);
+    gameState.phase = 'waiting';
+    gameState.waitTimeout = setTimeout(() => beginTransition(), wait);
+  }, 1600);
+}
+
+function handleSwatchClick(e) {
+  if (!gameState) return;
+  if (gameState.phase === 'waiting') {
+    triggerFalseStart();
+    return;
+  }
+  if (!gameState.clickEnabled) return;
+  // record
+  const rawMs = Math.round(performance.now() - gameState.transitionStart);
+  const offset = gameState.percOffset || 0;
+
+  // If the user clicked before the colour crossed the perceptual threshold:
+  // — First time: warn and restart the rep (might genuinely be too early)
+  // — Second time: they clearly see something the offset calc missed — accept raw, no offset
+  if (rawMs < offset) {
+    gameState.earlyClickCount++;
+
+    if (gameState.earlyClickCount < 2) {
+      // First early click — warn and restart
+      gameState.clickEnabled = false;
+      gameState.phase = 'falsestart';
+      if (gameState.animFrame) cancelAnimationFrame(gameState.animFrame);
+      const wrap = document.getElementById('swatch-wrap');
+      const pop = document.getElementById('false-start-pop');
+      pop.querySelector('.fs-text').innerHTML = 'Too fast!<br>The change wasn\'t visible yet';
+      pop.querySelector('.fs-sub').textContent = 'Rep restarting… (1 warning used)';
+      wrap.classList.add('false-start');
+      pop.classList.add('visible');
+      document.getElementById('game-msg').textContent = 'Click only once you can actually see the change';
+      setTimeout(() => {
+        wrap.classList.remove('false-start');
+        pop.classList.remove('visible');
+        pop.querySelector('.fs-text').innerHTML = 'Too soon!<br>Wait for the colour change';
+        pop.querySelector('.fs-sub').textContent = 'Rep restarting…';
+        document.getElementById('swatch').style.background = gameState.startColor;
+        document.getElementById('game-msg').textContent = 'Click the circle the moment you see it change';
+        const diff = getDiff();
+        const wait = diff.waitMin + Math.random() * (diff.waitMax - diff.waitMin);
+        gameState.phase = 'waiting';
+        gameState.waitTimeout = setTimeout(() => beginTransition(), wait);
+      }, 1600);
+      return;
+    }
+
+    // Second early click — accept raw score with no offset adjustment
+    // (player perceives the change earlier than our model predicts)
+    const acceptedMs = rawMs;
+    gameState.clickEnabled = false;
+    gameState.phase = 'done';
+    if (gameState.animFrame) cancelAnimationFrame(gameState.animFrame);
+    gameState.times.push({ raw: rawMs, adjusted: acceptedMs, offset: 0 });
+
+    const wrap = document.getElementById('swatch-wrap');
+    const rect = wrap.getBoundingClientRect();
+    const ripple = document.createElement('div');
+    ripple.className = 'ripple';
+    const size = 60;
+    ripple.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px;`;
+    wrap.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+
+    document.getElementById('game-msg').innerHTML =
+      `<span style="color:var(--accent);font-size:1.1em;font-weight:700;">${acceptedMs} ms</span>`
+      + `<span style="color:var(--muted);font-size:0.85em;"> (raw — offset overridden)</span>`;
+    updateDots(gameState.rep, gameState.rep + 1);
+    document.getElementById('swatch').style.background = gameState.endColor;
+    gameState.rep++;
+    if (gameState.rep < REPS) {
+      setTimeout(() => nextRep(), 1200);
+    } else {
+      setTimeout(() => endGame(), 800);
+    }
+    return;
+  }
+
+  const adjustedMs = rawMs - offset;
+  gameState.clickEnabled = false;
+  gameState.phase = 'done';
+  if (gameState.animFrame) cancelAnimationFrame(gameState.animFrame);
+  gameState.times.push({ raw: rawMs, adjusted: adjustedMs, offset });
+
+  // ripple effect
+  const wrap = document.getElementById('swatch-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const ripple = document.createElement('div');
+  ripple.className = 'ripple';
+  const size = 60;
+  ripple.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px;`;
+  wrap.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 600);
+
+  document.getElementById('game-msg').innerHTML =
+    `<span style="color:var(--accent);font-size:1.1em;font-weight:700;">${adjustedMs} ms</span>`
+    + `<span style="color:var(--muted);font-size:0.85em;"> (${rawMs} raw − ${offset} offset)</span>`;
+  updateDots(gameState.rep, gameState.rep + 1);
+
+  // set the swatch to final colour
+  document.getElementById('swatch').style.background = gameState.endColor;
+
+  gameState.rep++;
+  if (gameState.rep < REPS) {
+    setTimeout(() => nextRep(), 1200);
+  } else {
+    setTimeout(() => endGame(), 800);
+  }
+}
+
+function abortGame() {
+  if (gameState) {
+    clearTimeout(gameState.waitTimeout);
+    cancelAnimationFrame(gameState.animFrame);
+    gameState = null;
+  }
+  showScreen('home');
+}
+
+function endGame() {
+  const times = gameState.times; // array of { raw, adjusted, offset }
+  const avgRaw = Math.round(times.reduce((a,b) => a+b.raw, 0) / times.length);
+  const avgAdj = Math.round(times.reduce((a,b) => a+b.adjusted, 0) / times.length);
+
+  // save to Supabase — always, guests included (username = 'guest' for distribution)
+  sbFetch('/rest/v1/sessions', {
+    method: 'POST',
+    prefer: 'return=minimal',
+    body: JSON.stringify({
+      username: currentUser ? currentUser.username : 'guest',
+      avg_adjusted: avgAdj,
+      avg_raw: avgRaw,
+      times_adjusted: times.map(t => t.adjusted),
+      times_raw: times.map(t => t.raw),
+      difficulty: gameState.diffId || 'hard',
+    }),
+  }).catch(e => console.error('Save error', e));
+
+  const diff = DIFFICULTIES[gameState.diffId] || DIFFICULTIES.hard;
+  document.getElementById('results-user-line').textContent = currentUser
+    ? `Saved to @${currentUser.username}'s history · ${diff.name} difficulty`
+    : `Guest session · ${diff.name} difficulty — sign in to save`;
+
+  document.getElementById('results-avg-val').textContent = avgAdj;
+  // show raw avg as secondary
+  document.getElementById('results-avg-raw').textContent = `${avgRaw} ms raw`;
+
+  const repList = document.getElementById('results-rep-list');
+  repList.innerHTML = '';
+  const maxT = Math.max(...times.map(t => t.raw));
+  times.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'rep-row';
+    row.innerHTML = `
+      <span class="label">Rep ${i+1}</span>
+      <div class="bar-wrap">
+        <div class="bar-raw"  id="bar-raw-${i}"  style="width:0%"></div>
+        <div class="bar-adj"  id="bar-adj-${i}"  style="width:0%"></div>
+      </div>
+      <span class="val">
+        <span style="color:var(--accent);font-weight:700;">${t.adjusted}</span>
+        <span style="color:var(--muted);font-size:0.85em;"> / ${t.raw} ms</span>
+      </span>`;
+    repList.appendChild(row);
+  });
+
+  // legend
+  const legend = document.createElement('div');
+  legend.style.cssText = 'display:flex;gap:18px;margin-top:10px;';
+  legend.innerHTML = `
+    <span style="font-family:\'Space Mono\',monospace;font-size:0.65rem;color:var(--accent);display:flex;align-items:center;gap:5px;">
+      <span style="display:inline-block;width:10px;height:3px;background:var(--accent);border-radius:2px;"></span>adjusted
+    </span>
+    <span style="font-family:\'Space Mono\',monospace;font-size:0.65rem;color:var(--muted);display:flex;align-items:center;gap:5px;">
+      <span style="display:inline-block;width:10px;height:3px;background:var(--muted);border-radius:2px;"></span>raw
+    </span>`;
+  repList.appendChild(legend);
+
+  showScreen('results');
+  requestAnimationFrame(() => {
+    times.forEach((t, i) => {
+      setTimeout(() => {
+        const bRaw = document.getElementById('bar-raw-' + i);
+        const bAdj = document.getElementById('bar-adj-' + i);
+        if (bRaw) bRaw.style.width = Math.round((t.raw / maxT) * 100) + '%';
+        if (bAdj) bAdj.style.width = Math.round((t.adjusted / maxT) * 100) + '%';
+      }, i * 80);
+    });
+  });
+
+  gameState = null;
+}
+
+// ══════════════════════════════════════════════════
+//  SCOREBOARD
+// ══════════════════════════════════════════════════
+let activeLbTab = 'easy';
+
+function switchLbTab(diff) {
+  activeLbTab = diff;
+  document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.lb-tab.${diff}`).classList.add('active');
+  renderScoreboard();
+}
+
+async function renderScoreboard() {
+  const body = document.getElementById('lb-body');
+  const empty = document.getElementById('lb-empty');
+  const distLabel = document.getElementById('dist-label');
+
+  const diffNames = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+  distLabel.textContent = `${diffNames[activeLbTab]} — reaction distribution (ms, all players incl. guests)`;
+
+  body.innerHTML = '<tr><td colspan="5" style="color:var(--muted);font-family:\'Space Mono\',monospace;font-size:0.75rem;padding:16px 14px;">Loading…</td></tr>';
+  empty.style.display = 'none';
+
+  const r = await sbFetch(
+    `/rest/v1/sessions?select=username,avg_adjusted,times_adjusted&difficulty=eq.${activeLbTab}&order=avg_adjusted.asc`
+  );
+
+  if (!r.ok || !r.data) {
+    body.innerHTML = '';
+    empty.textContent = 'Could not load scores.';
+    empty.style.display = '';
+    return;
+  }
+
+  const sessions = r.data;
+
+  // aggregate per user — exclude 'guest' from leaderboard only
+  const userMap = {};
+  sessions.forEach(s => {
+    if (s.username === 'guest') return; // guests go to chart only
+    if (!userMap[s.username]) userMap[s.username] = { sessions: 0, bestAvg: Infinity, allTimes: [] };
+    const u = userMap[s.username];
+    u.sessions++;
+    if (s.avg_adjusted < u.bestAvg) u.bestAvg = s.avg_adjusted;
+    if (Array.isArray(s.times_adjusted)) u.allTimes.push(...s.times_adjusted);
+  });
+
+  const leaders = Object.entries(userMap)
+    .map(([name, d]) => ({
+      name,
+      bestAvg: d.bestAvg,
+      sessions: d.sessions,
+      allAvg: d.allTimes.length ? Math.round(d.allTimes.reduce((a,b)=>a+b,0)/d.allTimes.length) : d.bestAvg,
+    }))
+    .sort((a, b) => a.bestAvg - b.bestAvg);
+
+  body.innerHTML = '';
+  if (leaders.length === 0) {
+    empty.style.display = '';
+  } else {
+    empty.style.display = 'none';
+    const medals = ['🥇','🥈','🥉'];
+    leaders.forEach((l, i) => {
+      const tr = document.createElement('tr');
+      if (currentUser && l.name === currentUser.username) tr.classList.add('me');
+      tr.innerHTML = `
+        <td class="lb-rank">${medals[i] || (i+1)}</td>
+        <td><span class="username-link" onclick="openProfile('${l.name}')">${l.name}</span>${currentUser && l.name===currentUser.username?' <span style="color:var(--muted)">(you)</span>':''}</td>
+        <td><strong>${l.bestAvg}</strong></td>
+        <td>${l.sessions}</td>
+        <td>${l.allAvg}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  // distribution chart — all times including guests, tagged with username
+  const diffColors = { easy: ['#47ff96','#0a6632'], medium: ['#ffc847','#664e00'], hard: ['#ff4747','#660000'] };
+  const taggedEntries = sessions.flatMap(s =>
+    Array.isArray(s.times_adjusted)
+      ? s.times_adjusted.map(t => ({ t, user: s.username === 'guest' ? 'Anonymous' : s.username }))
+      : []
+  );
+  drawDistribution(taggedEntries, diffColors[activeLbTab]);
+}
+
+function removeOutliers(times) {
+  if (times.length < 4) return times;
+  const sorted = [...times].sort((a, b) => a - b);
+  const q1 = sorted[Math.floor(sorted.length * 0.25)];
+  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  const iqr = q3 - q1;
+  const lo = q1 - 1.5 * iqr;
+  const hi = q3 + 1.5 * iqr;
+  return sorted.filter(t => t >= lo && t <= hi);
+}
+
+function drawDistribution(entries, colors = ['#c8ff47', '#4a8000']) {
+  // entries: array of { t, user } or plain numbers (fallback)
+  const normalised = entries.map(e => typeof e === 'number' ? { t: e, user: 'Anonymous' } : e);
+  const times = normalised.map(e => e.t);
+
+  const filtered = removeOutliers(times);
+  const filteredSet = new Set(filtered); // for fast membership check
+
+  // Only keep entries whose time survived outlier removal
+  // (use index-safe approach since there may be duplicate values)
+  const filteredEntries = (() => {
+    const counts = {};
+    filtered.forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+    const used = {};
+    return normalised.filter(e => {
+      if (!counts[e.t]) return false;
+      used[e.t] = (used[e.t] || 0) + 1;
+      return used[e.t] <= counts[e.t];
+    });
+  })();
+
+  const canvas = document.getElementById('dist-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth;
+  const H = 160;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  if (times.length === 0) {
+    ctx.fillStyle = '#555570';
+    ctx.font = "12px 'Space Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillText('No data yet', W/2, H/2);
+    canvas._binMeta = null;
+    return;
+  }
+
+  const excluded = times.length - filteredEntries.length;
+
+  const minT = Math.max(0, Math.min(...filteredEntries.map(e=>e.t)) - 20);
+  const maxT = Math.max(...filteredEntries.map(e=>e.t)) + 20;
+  const BINS = 30;
+  const binSize = (maxT - minT) / BINS;
+
+  // Build bins with entries
+  const bins = Array.from({ length: BINS }, () => []);
+  filteredEntries.forEach(e => {
+    const idx = Math.min(BINS - 1, Math.floor((e.t - minT) / binSize));
+    bins[idx].push(e);
+  });
+  const maxCount = Math.max(...bins.map(b => b.length));
+
+  const PAD = { left: 44, right: 16, top: 16, bottom: 32 };
+  const gW = W - PAD.left - PAD.right;
+  const gH = H - PAD.top - PAD.bottom;
+  const barW = gW / BINS;
+
+  // Store bin geometry on canvas for hover detection
+  canvas._binMeta = { bins, minT, maxT, binSize, PAD, gW, gH, barW, maxCount, H };
+
+  // axes
+  ctx.strokeStyle = '#222230';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD.left, PAD.top);
+  ctx.lineTo(PAD.left, PAD.top + gH);
+  ctx.lineTo(PAD.left + gW, PAD.top + gH);
+  ctx.stroke();
+
+  // bars
+  bins.forEach((bin, i) => {
+    if (bin.length === 0) return;
+    const bH = (bin.length / maxCount) * gH;
+    const x = PAD.left + i * barW;
+    const y = PAD.top + gH - bH;
+    const grad = ctx.createLinearGradient(0, y, 0, y + bH);
+    grad.addColorStop(0, colors[0]);
+    grad.addColorStop(1, colors[1]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x + 1, y, barW - 2, bH);
+  });
+
+  // x labels
+  ctx.fillStyle = '#555570';
+  ctx.font = "10px 'Space Mono', monospace";
+  ctx.textAlign = 'center';
+  [minT, Math.round((minT + maxT) / 2), maxT].forEach(val => {
+    const x = PAD.left + ((val - minT) / (maxT - minT)) * gW;
+    ctx.fillText(val + 'ms', x, H - 6);
+  });
+
+  // y labels
+  ctx.textAlign = 'right';
+  [0, Math.round(maxCount / 2), maxCount].forEach(val => {
+    const y = PAD.top + gH - (val / maxCount) * gH;
+    ctx.fillText(val, PAD.left - 6, y + 4);
+  });
+
+  updateOutlierNote(excluded);
+}
+
+function updateOutlierNote(excluded) {
+  let note = document.getElementById('dist-outlier-note');
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'dist-outlier-note';
+    note.style.cssText = "font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--muted);margin-top:6px;text-align:right;";
+    document.getElementById('dist-canvas').insertAdjacentElement('afterend', note);
+  }
+  note.textContent = excluded > 0 ? `${excluded} outlier${excluded > 1 ? 's' : ''} removed (IQR)` : '';
+}
+
+// ══════════════════════════════════════════════════
+//  PROFILE
+// ══════════════════════════════════════════════════
+let profilePrevScreen = 'scoreboard';
+
+function openProfile(username) {
+  profilePrevScreen = prevScreen;
+  document.getElementById('profile-back-btn').onclick = () => showScreen(profilePrevScreen);
+  showScreen('profile');
+  renderProfile(username);
+}
+
+async function renderProfile(username) {
+  const main = document.getElementById('profile-main');
+  main.innerHTML = '<div class="profile-loading">Loading profile…</div>';
+
+  const r = await sbFetch(
+    `/rest/v1/sessions?select=username,avg_adjusted,avg_raw,times_adjusted,times_raw,difficulty,created_at&username=eq.${encodeURIComponent(username)}&order=avg_adjusted.asc`
+  );
+
+  if (!r.ok || !r.data || r.data.length === 0) {
+    main.innerHTML = '<div class="profile-loading">No data found for this user.</div>';
+    return;
+  }
+
+  const sessions = r.data;
+  const initial = username[0].toUpperCase();
+  const isYou = currentUser && currentUser.username === username;
+  const totalReps = sessions.reduce((s, sess) => s + (Array.isArray(sess.times_adjusted) ? sess.times_adjusted.length : 0), 0);
+
+  const diffConfigs = [
+    { id: 'easy',   name: 'Easy',   color: '#47ff96', colorDim: '#0a6632', badgeClass: 'easy' },
+    { id: 'medium', name: 'Medium', color: '#ffc847', colorDim: '#664e00', badgeClass: 'medium' },
+    { id: 'hard',   name: 'Hard',   color: '#ff4747', colorDim: '#660000', badgeClass: 'hard' },
+  ];
+
+  let html = `
+    <div class="profile-hero">
+      <div class="profile-avatar">${initial}</div>
+      <div class="profile-hero-text">
+        <h2>${username}${isYou ? ' <span style="color:var(--muted);font-size:0.8rem;font-weight:400">(you)</span>' : ''}</h2>
+        <p>${totalReps} total reps &nbsp;·&nbsp; ${sessions.length} sessions</p>
+        ${currentUser && !isYou ? `<button class="btn primary" style="margin-top:10px;padding:7px 16px;font-size:0.72rem;" onclick="challengeFriend('${username}')">⚔ Challenge to Duel</button>` : ''}
+      </div>
+    </div>`;
+
+  // Fetch duel stats for this user
+  const duelR = await sbFetch(`/rest/v1/ratings?username=eq.${encodeURIComponent(username)}&select=*`);
+  if (duelR.ok && duelR.data?.[0]) {
+    const dr = duelR.data[0];
+    const total = dr.wins + dr.losses;
+    const wr = total > 0 ? Math.round((dr.wins / total) * 100) : 0;
+    html += `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:32px;padding:18px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+        <div class="profile-stat" style="border-color:rgba(200,255,71,0.3)">
+          <span class="ps-val" style="color:var(--accent)">${dr.lp}</span><span class="ps-label">LP</span>
+        </div>
+        <div class="profile-stat"><span class="ps-val">${dr.wins}</span><span class="ps-label">Wins</span></div>
+        <div class="profile-stat"><span class="ps-val">${dr.losses}</span><span class="ps-label">Losses</span></div>
+        <div class="profile-stat"><span class="ps-val">${wr}%</span><span class="ps-label">Win rate</span></div>
+      </div>`;}
+
+
+  diffConfigs.forEach(dc => {
+    const diffSessions = sessions.filter(s => s.difficulty === dc.id);
+    const allAdj = diffSessions.flatMap(s => Array.isArray(s.times_adjusted) ? s.times_adjusted : []);
+    const allRaw = diffSessions.flatMap(s => Array.isArray(s.times_raw) ? s.times_raw : []);
+    const reps   = allAdj.length;
+
+    let statsHtml = `<div class="profile-empty">No ${dc.name} sessions yet.</div>`;
+    let top10Html = '';
+    let chartHtml = '';
+
+    if (reps > 0) {
+      const best = Math.min(...allAdj);
+      const avg  = Math.round(allAdj.reduce((a,b)=>a+b,0) / allAdj.length);
+      const bestRaw = Math.min(...allRaw);
+
+      statsHtml = `
+        <div class="profile-stat-row">
+          <div class="profile-stat"><span class="ps-val">${reps}</span><span class="ps-label">Total reps</span></div>
+          <div class="profile-stat"><span class="ps-val">${diffSessions.length}</span><span class="ps-label">Sessions</span></div>
+          <div class="profile-stat"><span class="ps-val">${best}</span><span class="ps-label">Best adj. ms</span></div>
+          <div class="profile-stat"><span class="ps-val">${avg}</span><span class="ps-label">Avg adj. ms</span></div>
+          <div class="profile-stat"><span class="ps-val">${bestRaw}</span><span class="ps-label">Best raw ms</span></div>
+        </div>`;
+
+      chartHtml = `
+        <div class="profile-canvas-wrap">
+          <h4>Personal reaction distribution</h4>
+          <canvas id="profile-canvas-${dc.id}" class="profile-canvas" height="130"></canvas>
+        </div>`;
+
+      const repEntries = diffSessions.flatMap(s => {
+        const adj = Array.isArray(s.times_adjusted) ? s.times_adjusted : [];
+        const raw = Array.isArray(s.times_raw) ? s.times_raw : [];
+        return adj.map((t, i) => ({ adj: t, raw: raw[i] ?? t }));
+      }).sort((a,b) => a.adj - b.adj).slice(0, 10);
+
+      const maxAdj = repEntries[repEntries.length - 1]?.adj || 1;
+      const medals = ['🥇','🥈','🥉'];
+      const rows = repEntries.map((rep, i) => `
+        <div class="profile-score-row">
+          <span class="profile-score-rank">${medals[i] || (i+1)}</span>
+          <div class="profile-score-bar-wrap">
+            <div class="profile-score-bar" style="width:${Math.round((rep.adj/maxAdj)*100)}%;background:${dc.color};"></div>
+          </div>
+          <span class="profile-score-val">${rep.adj}&thinsp;ms</span>
+          <span class="profile-score-raw">${rep.raw !== rep.adj ? `(${rep.raw} raw)` : ''}</span>
+        </div>`).join('');
+
+      top10Html = `
+        <div class="profile-top10">
+          <h4>Top 10 reps</h4>
+          <div class="profile-scores-list">${rows}</div>
+        </div>`;
+    }
+
+    html += `
+      <div class="profile-diff-section">
+        <div class="profile-diff-header">
+          <span class="diff-badge ${dc.badgeClass}">${dc.name}</span>
+          <h3>${dc.name}</h3>
+        </div>
+        ${statsHtml}
+        ${chartHtml}
+        ${top10Html}
+      </div>`;
+  });
+
+  main.innerHTML = html;
+
+  // Draw charts after DOM update
+  requestAnimationFrame(() => {
+    diffConfigs.forEach(dc => {
+      const canvas = document.getElementById(`profile-canvas-${dc.id}`);
+      if (!canvas) return;
+      const diffSessions = sessions.filter(s => s.difficulty === dc.id);
+      const allAdj = diffSessions.flatMap(s => Array.isArray(s.times_adjusted) ? s.times_adjusted : []);
+      if (allAdj.length > 0) drawProfileChart(canvas, allAdj, dc.color, dc.colorDim);
+    });
+  });
+}
+
+function drawProfileChart(canvas, times, color, colorDim) {
+  const filtered = removeOutliers(times);
+  if (filtered.length === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth;
+  const H = 130;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const BINS = 20;
+  const minT = Math.max(0, Math.min(...filtered) - 10);
+  const maxT = Math.max(...filtered) + 10;
+  const binSize = (maxT - minT) / BINS;
+  const bins = Array.from({ length: BINS }, () => []);
+  filtered.forEach(t => { bins[Math.min(BINS-1, Math.floor((t-minT)/binSize))].push(t); });
+  const maxCount = Math.max(...bins.map(b => b.length));
+  const PAD = { left: 36, right: 12, top: 12, bottom: 26 };
+  const gW = W - PAD.left - PAD.right;
+  const gH = H - PAD.top - PAD.bottom;
+  const barW = gW / BINS;
+
+  // Store for hover
+  canvas._binMeta = { bins: bins.map(b => b.map(t => ({ t, user: null }))), minT, maxT, binSize, PAD, gW, gH, barW, maxCount, H };
+  canvas._isProfile = true;
+
+  ctx.strokeStyle = '#222230'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD.left, PAD.top);
+  ctx.lineTo(PAD.left, PAD.top + gH);
+  ctx.lineTo(PAD.left + gW, PAD.top + gH);
+  ctx.stroke();
+
+  bins.forEach((bin, i) => {
+    if (bin.length === 0) return;
+    const bH = (bin.length / maxCount) * gH;
+    const x = PAD.left + i * barW;
+    const y = PAD.top + gH - bH;
+    const grad = ctx.createLinearGradient(0, y, 0, y + bH);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, colorDim);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x + 1, y, barW - 2, bH);
+  });
+
+  ctx.fillStyle = '#555570';
+  ctx.font = "9px 'Space Mono', monospace";
+  ctx.textAlign = 'center';
+  [minT, Math.round((minT+maxT)/2), maxT].forEach(val => {
+    const x = PAD.left + ((val-minT)/(maxT-minT)) * gW;
+    ctx.fillText(val + 'ms', x, H - 5);
+  });
+  ctx.textAlign = 'right';
+  [0, maxCount].forEach(val => {
+    const y = PAD.top + gH - (val/maxCount)*gH;
+    ctx.fillText(val, PAD.left - 4, y + 3);
+  });
+
+  // Attach hover listener (replace any previous one)
+  canvas._hoverHandler && canvas.removeEventListener('mousemove', canvas._hoverHandler);
+  canvas._leaveHandler && canvas.removeEventListener('mouseleave', canvas._leaveHandler);
+
+  canvas._hoverHandler = function(e) {
+    const meta = this._binMeta;
+    if (!meta) return;
+    const rect = this.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const { bins, minT, maxT, binSize, PAD, gW, gH, barW, maxCount, H } = meta;
+
+    if (mx < PAD.left || mx > PAD.left + gW || my < PAD.top || my > PAD.top + gH) {
+      distTooltip.classList.remove('visible'); return;
+    }
+    const binIdx = Math.floor((mx - PAD.left) / barW);
+    if (binIdx < 0 || binIdx >= bins.length || bins[binIdx].length === 0) {
+      distTooltip.classList.remove('visible'); return;
+    }
+    const bin = bins[binIdx];
+    const rangeMin = Math.round(minT + binIdx * binSize);
+    const rangeMax = Math.round(minT + (binIdx + 1) * binSize);
+    const vals = bin.map(e => e.t).sort((a,b) => a-b);
+    const valLines = vals.slice(0, 8).map(v => `<span style="color:var(--accent)">${v} ms</span>`).join('<br>');
+    const more = vals.length > 8 ? `<br><span style="color:var(--muted)">+${vals.length - 8} more</span>` : '';
+
+    distTooltip.innerHTML =
+      `<div style="color:var(--muted);margin-bottom:4px;">${rangeMin}–${rangeMax} ms &nbsp;·&nbsp; ${bin.length} rep${bin.length !== 1 ? 's' : ''}</div>` +
+      valLines + more;
+
+    const tx = Math.min(e.clientX + 14, window.innerWidth - 240);
+    const ty = Math.max(e.clientY - 20, 8);
+    distTooltip.style.left = tx + 'px';
+    distTooltip.style.top  = ty + 'px';
+    distTooltip.classList.add('visible');
+  };
+  canvas._leaveHandler = function() { distTooltip.classList.remove('visible'); };
+
+  canvas.style.cursor = 'crosshair';
+  canvas.addEventListener('mousemove', canvas._hoverHandler);
+  canvas.addEventListener('mouseleave', canvas._leaveHandler);
+}
+
+// ══════════════════════════════════════════════════
+//  FRIENDS
+// ══════════════════════════════════════════════════
+async function sendFriendRequest() {
+  if (!currentUser) return;
+  const target = document.getElementById('friend-add-input').value.trim().toLowerCase();
+  if (!target || target === currentUser.username) { showToast('Enter a valid username.'); return; }
+
+  // Check user exists via auth users table using username metadata
+  const chk = await sbFetch(`/rest/v1/users?username=eq.${encodeURIComponent(target)}&select=username`);
+  if (!chk.ok || !chk.data?.length) { showToast(`User "${target}" not found.`); return; }
+
+  // Canonical ordering so (a,b) and (b,a) are the same row
+  const [ua, ub] = [currentUser.username, target].sort();
+  const r = await sbFetch('/rest/v1/friends', {
+    method: 'POST', prefer: 'return=minimal',
+    body: JSON.stringify({ user_a: ua, user_b: ub, requested_by: currentUser.username, status: 'pending' }),
+  });
+  if (r.ok) {
+    showToast(`Friend request sent to ${target}!`);
+    document.getElementById('friend-add-input').value = '';
+    loadFriends();
+  } else {
+    showToast('Already friends or request pending.');
+  }
+}
+
+async function respondFriendRequest(id, accept) {
+  if (accept) {
+    await sbFetch(`/rest/v1/friends?id=eq.${id}`, { method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ status: 'accepted' }) });
+    showToast('Friend request accepted!');
+  } else {
+    await sbFetch(`/rest/v1/friends?id=eq.${id}`, { method: 'DELETE' });
+    showToast('Request declined.');
+  }
+  loadFriends();
+}
+
+async function removeFriend(id) {
+  await sbFetch(`/rest/v1/friends?id=eq.${id}`, { method: 'DELETE' });
+  showToast('Friend removed.'); loadFriends();
+}
+
+async function loadFriends() {
+  if (!currentUser) return;
+  const u = encodeURIComponent(currentUser.username);
+  const raw = currentUser.username;
+  const r = await sbFetch(`/rest/v1/friends?or=(user_a.eq.${u},user_b.eq.${u})&select=*`);
+  const list = document.getElementById('friends-list');
+  if (!r.ok || !r.data) { list.innerHTML = '<div class="profile-empty">Could not load friends.</div>'; return; }
+
+  const accepted = r.data.filter(f => f.status === 'accepted');
+  const pending  = r.data.filter(f => f.status === 'pending');
+  const incoming = pending.filter(f => f.requested_by !== raw);
+  const outgoing = pending.filter(f => f.requested_by === raw);
+
+  let html = '';
+  if (incoming.length) {
+    html += `<div class="friend-section-title">Incoming requests (${incoming.length})</div>`;
+    incoming.forEach(f => {
+      const other = f.user_a === raw ? f.user_b : f.user_a;
+      html += `<div class="friend-row">
+        <span class="fr-name" onclick="openProfile('${other}')">${other}</span>
+        <div class="fr-actions">
+          <button class="btn primary" style="padding:5px 12px;font-size:0.68rem;" onclick="respondFriendRequest('${f.id}',true)">Accept</button>
+          <button class="btn" style="padding:5px 12px;font-size:0.68rem;" onclick="respondFriendRequest('${f.id}',false)">Decline</button>
+        </div>
+      </div>`;
+    });
+  }
+  if (accepted.length) {
+    html += `<div class="friend-section-title">Friends (${accepted.length})</div>`;
+    accepted.forEach(f => {
+      const other = f.user_a === raw ? f.user_b : f.user_a;
+      html += `<div class="friend-row">
+        <span class="fr-name" onclick="openProfile('${other}')">${other}</span>
+        <div class="fr-actions">
+          <button class="btn primary" style="padding:5px 12px;font-size:0.68rem;" onclick="challengeFriend('${other}')">Duel</button>
+          <button class="btn danger" style="padding:5px 12px;font-size:0.68rem;" onclick="removeFriend('${f.id}')">Remove</button>
+        </div>
+      </div>`;
+    });
+  }
+  if (outgoing.length) {
+    html += `<div class="friend-section-title">Sent requests</div>`;
+    outgoing.forEach(f => {
+      const other = f.user_a === raw ? f.user_b : f.user_a;
+      html += `<div class="friend-row"><span class="fr-name">${other}</span><span style="font-family:'Space Mono',monospace;font-size:0.68rem;color:var(--muted);">pending</span></div>`;
+    });
+  }
+  if (!html) html = '<div class="profile-empty">No friends yet. Add someone by username above.</div>';
+  list.innerHTML = html;
+}
+
+async function checkFriendNotifs() {
+  if (!currentUser) return;
+  const u = currentUser.username;
+  const r = await sbFetch(`/rest/v1/friends?or=(user_a.eq.${encodeURIComponent(u)},user_b.eq.${encodeURIComponent(u)})&status=eq.pending&select=requested_by`);
+  const hasIncoming = r.ok && r.data?.some(f => f.requested_by !== u);
+  const dot = document.getElementById('home-friends-notif');
+  if (dot) dot.style.display = hasIncoming ? 'inline-block' : 'none';
+
+  // Check for incoming duel challenges and surface an accept prompt
+  const dc = await sbFetch(`/rest/v1/duels?player_b=eq.${encodeURIComponent(u)}&status=eq.challenged&select=id,player_a&limit=5`);
+  if (dc.ok && dc.data?.length) {
+    dc.data.forEach(d => showChallengeToast(d));
+  }
+}
+
+function showChallengeToast(duel) {
+  // Create a persistent challenge banner instead of a disappearing toast
+  const existing = document.getElementById('challenge-banner-' + duel.id);
+  if (existing) return;
+  const banner = document.createElement('div');
+  banner.id = 'challenge-banner-' + duel.id;
+  banner.style.cssText = `position:fixed;bottom:70px;left:50%;transform:translateX(-50%);z-index:1000;
+    background:var(--surface);border:1px solid var(--accent);border-radius:6px;
+    padding:12px 20px;display:flex;align-items:center;gap:14px;
+    font-family:'Space Mono',monospace;font-size:0.75rem;color:var(--text);
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);white-space:nowrap;`;
+  banner.innerHTML = `
+    <span>⚔ <strong style="color:var(--accent)">${duel.player_a}</strong> challenges you!</span>
+    <button class="btn primary" style="padding:5px 14px;font-size:0.68rem;" onclick="acceptChallenge('${duel.id}','${duel.player_a}',this.closest('[id]'))">Accept</button>
+    <button class="btn danger" style="padding:5px 14px;font-size:0.68rem;" onclick="declineChallenge('${duel.id}',this.closest('[id]'))">Decline</button>`;
+  document.body.appendChild(banner);
+}
+
+async function acceptChallenge(duelId, challengerName, bannerEl) {
+  if (!currentUser) return;
+  bannerEl?.remove();
+  const seed = Math.floor(Math.random() * 2147483647);
+  const r = await sbFetch(`/rest/v1/duels?id=eq.${duelId}`, {
+    method: 'PATCH', prefer: 'return=representation',
+    body: JSON.stringify({ status: 'ready', seed }),
+  });
+  if (r.ok && r.data?.[0]) startDuelGame(r.data[0], 'b');
+}
+
+async function declineChallenge(duelId, bannerEl) {
+  bannerEl?.remove();
+  await sbFetch(`/rest/v1/duels?id=eq.${duelId}`, {
+    method: 'PATCH', prefer: 'return=minimal',
+    body: JSON.stringify({ status: 'complete' }),
+  });
+}
+
+// Add challenge button on profile page
+async function challengeFriend(username) {
+  if (!currentUser) return;
+  showScreen('duel-lobby');
+  await startChallengeDuel(username);
+}
+
+// ══════════════════════════════════════════════════
+//  DUEL — SHARED RNG (seeded random)
+// ══════════════════════════════════════════════════
+function seededRandom(seed) {
+  // Mulberry32 — fast, good quality seeded PRNG
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ══════════════════════════════════════════════════
+//  DUEL STATE
+// ══════════════════════════════════════════════════
+let duelState = null;
+let duelPollInterval = null;
+let pendingDuelId = null; // the waiting duel row we own while in queue
+
+function openDuelLobby() {
+  if (!currentUser) { showToast('Sign in to play duels.'); return; }
+  document.getElementById('queue-status').innerHTML = '';
+  showScreen('duel-lobby');
+}
+
+async function joinRandomQueue() {
+  if (!currentUser) return;
+  const u = currentUser.username;
+
+  // Show waiting UI
+  document.getElementById('queue-status').innerHTML = `
+    <div class="queue-waiting">
+      <div class="queue-pulse"></div>
+      <h3>Finding opponent…</h3>
+      <p>Duels are always Hard difficulty</p>
+      <button class="btn danger" style="margin-top:20px;" onclick="leaveQueue()">Leave Queue</button>
+    </div>`;
+
+  // Try to find an open waiting duel
+  const existing = await sbFetch(`/rest/v1/duels?status=eq.waiting&player_b=is.null&player_a=neq.${encodeURIComponent(u)}&select=id,player_a&limit=1`);
+
+  if (existing.ok && existing.data?.length) {
+    // Join as player_b — generate seed here
+    const duelId = existing.data[0].id;
+    const seed = Math.floor(Math.random() * 2147483647);
+    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelId}`, {
+      method: 'PATCH', prefer: 'return=representation',
+      body: JSON.stringify({ player_b: u, status: 'ready', seed }),
+    });
+    if (r.ok && r.data?.[0]) {
+      clearInterval(duelPollInterval);
+      startDuelGame(r.data[0], 'b');
+    }
+  } else {
+    // Create new duel as player_a and wait
+    const r = await sbFetch('/rest/v1/duels', {
+      method: 'POST', prefer: 'return=representation',
+      body: JSON.stringify({ player_a: u, difficulty: 'hard', status: 'waiting' }),
+    });
+    if (r.ok && r.data?.[0]) {
+      pendingDuelId = r.data[0].id;
+      pollForOpponent(r.data[0].id);
+    }
+  }
+}
+
+async function startChallengeDuel(targetUsername) {
+  const u = currentUser.username;
+  const diff = getDiff().id;
+  document.getElementById('queue-status').innerHTML = `
+    <div class="queue-waiting">
+      <div class="queue-pulse"></div>
+      <h3>Challenging ${targetUsername}…</h3>
+      <p>Waiting for them to accept</p>
+      <button class="btn danger" style="margin-top:20px;" onclick="leaveQueue()">Cancel</button>
+    </div>`;
+  const r = await sbFetch('/rest/v1/duels', {
+    method: 'POST', prefer: 'return=representation',
+    body: JSON.stringify({ player_a: u, player_b: targetUsername, difficulty: diff, status: 'challenged' }),
+  });
+  if (r.ok && r.data?.[0]) pollForOpponent(r.data[0].id);
+}
+
+function pollForOpponent(duelId) {
+  clearInterval(duelPollInterval);
+  duelPollInterval = setInterval(async () => {
+    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelId}&select=*`);
+    if (!r.ok || !r.data?.[0]) return;
+    const duel = r.data[0];
+    if ((duel.status === 'ready' || duel.status === 'active') && duel.player_b && duel.seed) {
+      clearInterval(duelPollInterval);
+      pendingDuelId = null;
+      startDuelGame(duel, 'a');
+    }
+  }, 1500);
+}
+
+async function leaveQueue() {
+  clearInterval(duelPollInterval);
+  if (pendingDuelId) {
+    await sbFetch(`/rest/v1/duels?id=eq.${pendingDuelId}&status=eq.waiting`, {
+      method: 'DELETE',
+    }).catch(() => {});
+    pendingDuelId = null;
+  }
+  document.getElementById('queue-status').innerHTML = '';
+}
+
+// ══════════════════════════════════════════════════
+//  DUEL GAME
+// ══════════════════════════════════════════════════
+function startDuelGame(duel, role) {
+  const myName  = role === 'a' ? duel.player_a : duel.player_b;
+  const oppName = role === 'a' ? duel.player_b : duel.player_a;
+  const diff    = DIFFICULTIES['hard']; // duels are always hard
+  const rng     = seededRandom(duel.seed);
+
+  // Pre-generate all 5 colour pairs and offsets from shared seed
+  const rounds = [];
+  for (let i = 0; i < 5; i++) {
+    const h  = rng() * 360;
+    const s  = 55 + rng() * 30;
+    const l  = 42 + rng() * 18;
+    const startColor = hslToHex(h, s, l);
+    const endColor   = seededColorFarFrom(startColor, diff.minHueDist, rng);
+    const offset     = computePerceptualOffset(startColor, endColor, diff.transitionDuration);
+    const waitMs     = diff.waitMin + rng() * (diff.waitMax - diff.waitMin);
+    rounds.push({ startColor, endColor, offset, waitMs });
+  }
+
+  duelState = {
+    duelId: duel.id, role, myName, oppName, diff,
+    rounds, currentRound: 0,
+    scoreMe: 0, scoreOpp: 0,
+    repResults: [],
+    phase: 'waiting',
+    transitionStart: null,
+    animFrame: null,
+    waitTimeout: null,
+    clickEnabled: false,
+    earlyClickCount: 0,
+    percOffset: 0,
+    pollInterval: null,
+  };
+
+  // Update nav
+  const diffPill = document.getElementById('duel-nav-diff-pill');
+  diffPill.className = 'nav-pill diff-' + diff.id;
+  document.getElementById('duel-nav-diff-val').textContent = diff.name;
+  document.getElementById('duel-name-me').textContent  = myName + (role === 'a' ? ' (you)' : ' (you)');
+  document.getElementById('duel-name-opp').textContent = oppName;
+  document.getElementById('duel-score-me').textContent  = '0';
+  document.getElementById('duel-score-opp').textContent = '0';
+
+  buildDuelDots();
+  showScreen('duel-game');
+
+  // Mark duel as active if player_a
+  if (role === 'a') {
+    sbFetch(`/rest/v1/duels?id=eq.${duel.id}`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: JSON.stringify({ status: 'active' }),
+    });
+  }
+
+  setTimeout(() => startDuelRound(), 1000);
+  startOpponentPoll();
+}
+
+// Seeded version for duels only — separate name to avoid shadowing the training version
+function seededColorFarFrom(hex, minHueDist, rng) {
+  let attempts = 0;
+  while (attempts < 200) {
+    const h = rng() * 360;
+    const s = 55 + rng() * 30;
+    const l = 42 + rng() * 18;
+    const c = hslToHex(h, s, l);
+    const [h1] = hexToHSL(hex);
+    const [h2] = hexToHSL(c);
+    if (hueDist(h1, h2) >= minHueDist) return c;
+    attempts++;
+  }
+  const [h, s, l] = hexToHSL(hex);
+  return hslToHex((h + 150 + rng() * 60) % 360, s, l);
+}
+
+function buildDuelDots() {
+  const wrap = document.getElementById('duel-rep-dots');
+  wrap.innerHTML = '';
+  for (let i = 0; i < 5; i++) {
+    const d = document.createElement('div');
+    d.className = 'rep-dot' + (i === 0 ? ' active' : '');
+    d.id = 'ddot-' + i;
+    wrap.appendChild(d);
+  }
+}
+
+function updateDuelDots(current, done) {
+  for (let i = 0; i < 5; i++) {
+    const d = document.getElementById('ddot-' + i);
+    if (d) d.className = 'rep-dot' + (i < done ? ' done' : '') + (i === current ? ' active' : '');
+  }
+}
+
+function startDuelRound() {
+  if (!duelState) return;
+  const rep = duelState.currentRound;
+  const round = duelState.rounds[rep];
+  document.getElementById('duel-round-display').textContent = rep + 1;
+  updateDuelDots(rep, rep);
+
+  duelState.phase = 'waiting';
+  duelState.clickEnabled = false;
+  duelState.earlyClickCount = 0;
+  duelState.percOffset = round.offset;
+
+  document.getElementById('duel-swatch').style.background = round.startColor;
+  document.getElementById('duel-game-msg').textContent = 'Click the circle the moment you see it change';
+
+  duelState.waitTimeout = setTimeout(() => beginDuelTransition(), round.waitMs);
+
+  // Also submit our "ready" time to DB so opponent can sync
+  sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
+    method: 'PATCH', prefer: 'return=minimal',
+    body: JSON.stringify({ current_rep: rep }),
+  });
+}
+
+function beginDuelTransition() {
+  if (!duelState || duelState.phase !== 'waiting') return;
+  duelState.phase = 'changing';
+  duelState.transitionStart = performance.now();
+  duelState.clickEnabled = true;
+  animateDuelTransition();
+}
+
+function animateDuelTransition() {
+  if (!duelState || duelState.phase !== 'changing') return;
+  const round = duelState.rounds[duelState.currentRound];
+  const elapsed = performance.now() - duelState.transitionStart;
+  const t = Math.min(elapsed / duelState.diff.transitionDuration, 1);
+  document.getElementById('duel-swatch').style.background = lerpHex(round.startColor, round.endColor, t);
+  if (t < 1) duelState.animFrame = requestAnimationFrame(animateDuelTransition);
+}
+
+async function recordDuelClick(raw, adjusted, offset) {
+  if (!duelState) return;
+  duelState.clickEnabled = false;
+  duelState.phase = 'done';
+  if (duelState.animFrame) cancelAnimationFrame(duelState.animFrame);
+
+  const rep = duelState.currentRound;
+  const round = duelState.rounds[rep];
+
+  // Ripple
+  const wrap = document.getElementById('duel-swatch-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const ripple = document.createElement('div');
+  ripple.className = 'ripple';
+  const sz = 60;
+  // dummy event coords — use center
+  ripple.style.cssText = `width:${sz}px;height:${sz}px;left:${(rect.width-sz)/2}px;top:${(rect.height-sz)/2}px;`;
+  wrap.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 600);
+
+  document.getElementById('duel-game-msg').textContent = `${adjusted} ms`;
+
+  // Write click to DB — opponent poll will read this
+  const repTimes = duelState.repResults ? [...duelState.repResults] : [];
+  repTimes.push({ rep, player: duelState.role, raw, adjusted });
+
+  await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
+    method: 'PATCH', prefer: 'return=minimal',
+    body: JSON.stringify({ rep_times: JSON.stringify(repTimes) }),
+  });
+
+  duelState.repResults = repTimes;
+
+  // Wait briefly then check if opponent has also clicked this round
+  setTimeout(() => resolveRound(rep), 1200);
+}
+
+function handleDuelClick(e) {
+  if (!duelState) return;
+
+  // Pre-transition click (waiting phase) → 1s cooldown, no restart
+  if (duelState.phase === 'waiting') {
+    triggerDuelFalseStart('early');
+    return;
+  }
+  if (!duelState.clickEnabled) return;
+
+  const rawMs = Math.round(performance.now() - duelState.transitionStart);
+  const offset = duelState.percOffset || 0;
+
+  // Sub-offset click during transition:
+  // Player may genuinely see something the model missed — accept raw immediately, no offset
+  if (rawMs < offset) {
+    triggerDuelFalseStart('suboffset', rawMs);
+    return;
+  }
+
+  recordDuelClick(rawMs, rawMs - offset, offset);
+}
+
+function triggerDuelFalseStart(reason, rawMs) {
+  if (!duelState) return;
+
+  if (reason === 'suboffset') {
+    // Player clicked inside the "invisible" window but could genuinely see it
+    // Accept raw score with 0 offset (same logic as training mode second early click)
+    recordDuelClick(rawMs, rawMs, 0);
+    return;
+  }
+
+  // reason === 'early' — clicked before transition started → 1s clickEnabled lockout
+  if (duelState.phase !== 'waiting') return;
+  duelState.clickEnabled = false;
+
+  const wrap = document.getElementById('duel-swatch-wrap');
+  const pop  = document.getElementById('duel-false-start-pop');
+  wrap.classList.add('false-start');
+  pop.classList.add('visible');
+  pop.querySelector('.fs-text').innerHTML = 'Too soon!<br>1s penalty';
+  pop.querySelector('.fs-sub').textContent = 'Cooldown…';
+  document.getElementById('duel-game-msg').textContent = 'Wait for the change — no pre-firing';
+
+  setTimeout(() => {
+    wrap.classList.remove('false-start');
+    pop.classList.remove('visible');
+    pop.querySelector('.fs-text').innerHTML = 'Too soon!<br>Wait for the colour change';
+    pop.querySelector('.fs-sub').textContent = 'Round restarting…';
+    document.getElementById('duel-game-msg').textContent = 'Click the circle the moment you see it change';
+    duelState.clickEnabled = true; // re-enable, transition may still be running
+  }, 1000);
+}
+
+async function resolveRound(rep) {
+  if (!duelState) return;
+  // Fetch latest duel state from DB to get opponent's click
+  const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=rep_times,score_a,score_b`);
+  if (!r.ok || !r.data?.[0]) return;
+
+  const dbRepTimes = typeof r.data[0].rep_times === 'string'
+    ? JSON.parse(r.data[0].rep_times) : (r.data[0].rep_times || []);
+
+  const myClick   = dbRepTimes.find(t => t.rep === rep && t.player === duelState.role);
+  const oppRole   = duelState.role === 'a' ? 'b' : 'a';
+  const oppClick  = dbRepTimes.find(t => t.rep === rep && t.player === oppRole);
+
+  if (!myClick) return; // shouldn't happen
+
+  let roundWinner = null;
+  if (myClick && oppClick) {
+    roundWinner = myClick.adjusted <= oppClick.adjusted ? duelState.role : oppRole;
+  } else {
+    // Opponent hasn't clicked yet — wait a bit more then resolve with just our time
+    if (duelState.resolveAttempts < 10) {
+      duelState.resolveAttempts = (duelState.resolveAttempts || 0) + 1;
+      setTimeout(() => resolveRound(rep), 1000);
+      return;
+    }
+    roundWinner = duelState.role; // opponent timed out
+  }
+
+  duelState.resolveAttempts = 0;
+  const iWon = roundWinner === duelState.role;
+  if (iWon) duelState.scoreMe++; else duelState.scoreOpp++;
+
+  // Flash winner side
+  document.getElementById('duel-score-me').textContent  = duelState.scoreMe;
+  document.getElementById('duel-score-opp').textContent = duelState.scoreOpp;
+  const flashEl = document.getElementById(iWon ? 'duel-p-me' : 'duel-p-opp');
+  flashEl.classList.add('winner-flash');
+  setTimeout(() => flashEl.classList.remove('winner-flash'), 800);
+
+  updateDuelDots(rep, rep + 1);
+  duelState.currentRound++;
+
+  // Check if match is over (first to 5, or 5 rounds done)
+  if (duelState.scoreMe >= 5 || duelState.scoreOpp >= 5 || duelState.currentRound >= 5) {
+    setTimeout(() => endDuel(), 1000);
+  } else {
+    document.getElementById('duel-swatch').style.background = duelState.rounds[duelState.currentRound - 1].endColor;
+    setTimeout(() => startDuelRound(), 1400);
+  }
+}
+
+// Poll for opponent updates
+function startOpponentPoll() {
+  clearInterval(duelState.pollInterval);
+  duelState.pollInterval = setInterval(async () => {
+    if (!duelState) { clearInterval(duelState?.pollInterval); return; }
+    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=status,rep_times,score_a,score_b`);
+    if (!r.ok || !r.data?.[0]) return;
+    const d = r.data[0];
+    if (d.status === 'complete') clearInterval(duelState.pollInterval);
+  }, 1500);
+}
+
+async function endDuel() {
+  if (!duelState) return;
+  clearInterval(duelState.pollInterval);
+  clearInterval(duelPollInterval);
+
+  const won = duelState.scoreMe > duelState.scoreOpp;
+  const lpDelta = won ? 30 : -10;
+
+  // Update LP
+  const myRating = await sbFetch(`/rest/v1/ratings?username=eq.${duelState.myName}&select=lp,wins,losses`);
+  const myLP  = myRating.data?.[0]?.lp ?? 0;
+  const myW   = myRating.data?.[0]?.wins ?? 0;
+  const myL   = myRating.data?.[0]?.losses ?? 0;
+  const newLP = Math.max(0, myLP + lpDelta);
+
+  await sbFetch('/rest/v1/ratings', {
+    method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
+    extraHeaders: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ username: duelState.myName, lp: newLP, wins: myW + (won?1:0), losses: myL + (won?0:1) }),
+  });
+
+  // Update duel record
+  const scoreA = duelState.role === 'a' ? duelState.scoreMe : duelState.scoreOpp;
+  const scoreB = duelState.role === 'b' ? duelState.scoreMe : duelState.scoreOpp;
+  await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
+    method: 'PATCH', prefer: 'return=minimal',
+    body: JSON.stringify({ status: 'complete', score_a: scoreA, score_b: scoreB }),
+  });
+
+  // Build result screen
+  document.getElementById('duel-result-icon').textContent  = won ? '🏆' : '💀';
+  document.getElementById('duel-result-title').textContent = won ? 'Victory!' : 'Defeat';
+  document.getElementById('duel-result-sub').textContent   = `${duelState.scoreMe} – ${duelState.scoreOpp} vs ${duelState.oppName}`;
+  const badge = document.getElementById('duel-lp-badge');
+  badge.textContent = lpDelta >= 0 ? `+${lpDelta} LP` : `${lpDelta} LP`;
+  badge.className = 'duel-lp-change ' + (lpDelta >= 0 ? 'win' : 'loss');
+
+  // Rep breakdown
+  const repList = document.getElementById('duel-rep-list');
+  const oppRole = duelState.role === 'a' ? 'b' : 'a';
+  const allReps = duelState.repResults;
+  repList.innerHTML = '';
+  for (let i = 0; i < duelState.currentRound; i++) {
+    const mine = allReps.find(r => r.rep === i && r.player === duelState.role);
+    const opp  = allReps.find(r => r.rep === i && r.player === oppRole);
+    const myMs  = mine?.adjusted ?? '—';
+    const oppMs = opp?.adjusted  ?? '—';
+    const iWon  = mine && opp ? mine.adjusted <= opp.adjusted : !!mine;
+    const row = document.createElement('div');
+    row.className = 'duel-rep-row';
+    row.innerHTML = `
+      <span style="color:var(--muted)">Rd ${i+1}</span>
+      <span class="${iWon?'winner-tag':'loser-tag'}">${iWon?'✓':''} ${myMs} ms</span>
+      <span style="color:var(--muted)">vs</span>
+      <span class="${!iWon?'winner-tag':'loser-tag'}">${!iWon?'✓':''} ${oppMs} ms</span>`;
+    repList.appendChild(row);
+  }
+
+  showScreen('duel-result');
+  duelState = null;
+}
+
+async function forfeitDuel() {
+  if (duelState) {
+    clearTimeout(duelState.waitTimeout);
+    cancelAnimationFrame(duelState.animFrame);
+    clearInterval(duelState.pollInterval);
+    await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: JSON.stringify({ status: 'complete', score_a: 0, score_b: 0 }),
+    });
+    // LP penalty
+    const myRating = await sbFetch(`/rest/v1/ratings?username=eq.${duelState.myName}&select=lp,losses`);
+    const myLP = myRating.data?.[0]?.lp ?? 0;
+    const myL  = myRating.data?.[0]?.losses ?? 0;
+    await sbFetch('/rest/v1/ratings', {
+      method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
+      extraHeaders: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ username: duelState.myName, lp: Math.max(0, myLP - 10), losses: myL + 1 }),
+    });
+    duelState = null;
+  }
+  showScreen('home');
+}
+
+// ══════════════════════════════════════════════════
+//  COMP LEADERBOARD
+// ══════════════════════════════════════════════════
+let compLbTab = 'lp';
+
+function switchCompTab(tab) {
+  compLbTab = tab;
+  document.getElementById('clb-tab-lp').classList.toggle('active', tab === 'lp');
+  document.getElementById('clb-tab-speed').classList.toggle('active', tab === 'speed');
+  renderCompLb();
+}
+
+async function renderCompLb() {
+  const body  = document.getElementById('comp-lb-body');
+  const head  = document.getElementById('comp-lb-head');
+  const empty = document.getElementById('comp-lb-empty');
+  body.innerHTML = '<tr><td colspan="5" style="color:var(--muted);font-family:\'Space Mono\',monospace;font-size:0.75rem;padding:16px 14px;">Loading…</td></tr>';
+
+  if (compLbTab === 'lp') {
+    head.innerHTML = '<th>#</th><th>Player</th><th>LP</th><th>Wins</th><th>Losses</th>';
+    const r = await sbFetch('/rest/v1/ratings?select=*&order=lp.desc&limit=50');
+    body.innerHTML = '';
+    if (!r.ok || !r.data?.length) { empty.style.display = ''; return; }
+    empty.style.display = 'none';
+    const medals = ['🥇','🥈','🥉'];
+    r.data.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      if (currentUser && row.username === currentUser.username) tr.classList.add('me');
+      tr.innerHTML = `
+        <td class="lb-rank">${medals[i] || (i+1)}</td>
+        <td><span class="username-link" onclick="openProfile('${row.username}')">${row.username}</span>${currentUser && row.username===currentUser.username?' <span style="color:var(--muted)">(you)</span>':''}</td>
+        <td><strong style="color:var(--accent)">${row.lp}</strong></td>
+        <td>${row.wins}</td>
+        <td>${row.losses}</td>`;
+      body.appendChild(tr);
+    });
+  } else {
+    // Fastest in-duel adjusted reaction
+    head.innerHTML = '<th>#</th><th>Player</th><th>Best Rep (ms)</th><th>Avg Rep (ms)</th><th>Duels</th>';
+    const r = await sbFetch('/rest/v1/duels?status=eq.complete&select=player_a,player_b,rep_times&limit=200');
+    body.innerHTML = '';
+    if (!r.ok || !r.data?.length) { empty.style.display = ''; return; }
+    empty.style.display = 'none';
+
+    const playerMap = {};
+    r.data.forEach(d => {
+      const times = typeof d.rep_times === 'string' ? JSON.parse(d.rep_times||'[]') : (d.rep_times||[]);
+      times.forEach(t => {
+        const pname = t.player === 'a' ? d.player_a : d.player_b;
+        if (!pname || pname === 'guest') return;
+        if (!playerMap[pname]) playerMap[pname] = { times: [], duels: new Set() };
+        if (t.adjusted != null) playerMap[pname].times.push(t.adjusted);
+        playerMap[pname].duels.add(d.player_a + '-' + d.player_b);
+      });
+    });
+
+    const leaders = Object.entries(playerMap)
+      .filter(([,d]) => d.times.length > 0)
+      .map(([name, d]) => ({
+        name,
+        best: Math.min(...d.times),
+        avg: Math.round(d.times.reduce((a,b)=>a+b,0)/d.times.length),
+        duels: d.duels.size,
+      }))
+      .sort((a,b) => a.best - b.best);
+
+    const medals = ['🥇','🥈','🥉'];
+    leaders.forEach((l, i) => {
+      const tr = document.createElement('tr');
+      if (currentUser && l.name === currentUser.username) tr.classList.add('me');
+      tr.innerHTML = `
+        <td class="lb-rank">${medals[i] || (i+1)}</td>
+        <td><span class="username-link" onclick="openProfile('${l.name}')">${l.name}</span>${currentUser && l.name===currentUser.username?' <span style="color:var(--muted)">(you)</span>':''}</td>
+        <td><strong style="color:var(--accent)">${l.best}</strong></td>
+        <td>${l.avg}</td>
+        <td>${l.duels}</td>`;
+      body.appendChild(tr);
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ══════════════════════════════════════════════════
+//  EVENT LISTENERS
+// ══════════════════════════════════════════════════
+document.getElementById('swatch-wrap').addEventListener('click', handleSwatchClick);
+document.getElementById('duel-swatch-wrap').addEventListener('click', handleDuelClick);
+document.getElementById('auth-pass').addEventListener('keydown', e => { if (e.key === 'Enter') authSubmit(); });
+document.getElementById('auth-user').addEventListener('keydown', e => { if (e.key === 'Enter') authSubmit(); });
+document.getElementById('friend-add-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendFriendRequest(); });
+
+// ── DISTRIBUTION CHART TOOLTIP ───────────────────
+const distTooltip = document.createElement('div');
+distTooltip.id = 'dist-tooltip';
+document.body.appendChild(distTooltip);
+
+document.getElementById('dist-canvas').addEventListener('mousemove', function(e) {
+  const meta = this._binMeta;
+  if (!meta) return;
+
+  const rect = this.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const { bins, minT, maxT, binSize, PAD, gW, gH, barW, maxCount, H } = meta;
+
+  // Check if mouse is within the graph area
+  if (mx < PAD.left || mx > PAD.left + gW || my < PAD.top || my > PAD.top + gH) {
+    distTooltip.classList.remove('visible');
+    return;
+  }
+
+  const binIdx = Math.floor((mx - PAD.left) / barW);
+  if (binIdx < 0 || binIdx >= bins.length || bins[binIdx].length === 0) {
+    distTooltip.classList.remove('visible');
+    return;
+  }
+
+  const bin = bins[binIdx];
+  const rangeMin = Math.round(minT + binIdx * binSize);
+  const rangeMax = Math.round(minT + (binIdx + 1) * binSize);
+
+  // Build user list — group by name and show counts
+  const userCounts = {};
+  bin.forEach(({ user }) => { userCounts[user] = (userCounts[user] || 0) + 1; });
+  const userLines = Object.entries(userCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([u, c]) => {
+      const isAnon = u === 'Anonymous';
+      const nameHtml = isAnon
+        ? `<span style="color:var(--muted)">Anonymous</span>`
+        : `<span class="username-link" style="color:var(--accent);cursor:pointer;" onclick="openProfile('${u}')">${u}</span>`;
+      return nameHtml + (c > 1 ? ` <span style="color:var(--muted)">×${c}</span>` : '');
+    })
+    .join('<br>');
+  const more = Object.keys(userCounts).length > 6 ? `<br><span style="color:var(--muted)">+${bin.length - Object.entries(userCounts).slice(0,6).reduce((s,[,c])=>s+c,0)} more</span>` : '';
+
+  distTooltip.innerHTML =
+    `<div style="color:var(--muted);margin-bottom:4px;">${rangeMin}–${rangeMax} ms &nbsp;·&nbsp; ${bin.length} rep${bin.length !== 1 ? 's' : ''}</div>` +
+    userLines + more;
+
+  // Position tooltip near cursor, keep it on screen
+  const tx = Math.min(e.clientX + 14, window.innerWidth - 240);
+  const ty = Math.max(e.clientY - 20, 8);
+  distTooltip.style.left = tx + 'px';
+  distTooltip.style.top  = ty + 'px';
+  distTooltip.classList.add('visible');
+});
+
+document.getElementById('dist-canvas').addEventListener('mouseleave', function() {
+  distTooltip.classList.remove('visible');
+});
+
+// ── SESSION PERSISTENCE ─────────────────────────
+const SESSION_KEY = 'chromareflex_session';
+
+function saveSession(data) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch(e) {}
+}
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+}
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch(e) { return null; }
+}
+
+async function restoreSession() {
+  const saved = loadSession();
+  if (!saved?.refresh_token) return;
+  // Use the refresh token to get a new access token
+  const r = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: saved.refresh_token }),
+  }).catch(() => null);
+  if (!r?.ok || !r.data?.access_token) {
+    clearSession(); // refresh token expired — clear it
+    return;
+  }
+  const username = r.data.user?.user_metadata?.username || saved.username;
+  currentUser = { username, token: r.data.access_token };
+  // Update stored session with new tokens
+  saveSession({
+    username,
+    refresh_token: r.data.refresh_token || saved.refresh_token,
+  });
+}
+function openInstructions() {
+  document.getElementById('modal-instructions').classList.add('open');
+}
+function closeInstructions() {
+  const modal = document.getElementById('modal-instructions');
+  modal.classList.remove('open');
+  if (document.getElementById('instr-dont-show').checked) {
+    try { localStorage.setItem('chromareflex_seen', '1'); } catch(e) {}
+  }
+}
+// Close on backdrop click
+document.getElementById('modal-instructions').addEventListener('click', function(e) {
+  if (e.target === this) closeInstructions();
+});
+
+// ── INIT ────────────────────────────────────────
+// Restore persisted session first, then render
+restoreSession().then(() => {
+  showScreen('home');
+  // Show instructions on first visit
+  let seen = false;
+  try { seen = !!localStorage.getItem('chromareflex_seen'); } catch(e) {}
+  if (!seen) openInstructions();
+});
+</script>
+</body>
+</html>
