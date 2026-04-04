@@ -1098,11 +1098,11 @@ async function authSubmit() {
     }
     currentUser = { username, token: r.data.access_token };
     saveSession({ username, refresh_token: r.data.refresh_token });
-    // insert into users table (ignore duplicate errors)
+    // insert into users table for friend lookup (ignore duplicate errors)
     await sbFetch('/rest/v1/users', {
       method: 'POST',
       prefer: 'return=minimal',
-      body: JSON.stringify({ username, email }),
+      body: JSON.stringify({ username }),
     });
     showToast(`Welcome, ${username}!`);
     showScreen('home');
@@ -1119,6 +1119,11 @@ async function authSubmit() {
     const uname = r.data?.user?.user_metadata?.username || username;
     currentUser = { username: uname, token: r.data.access_token };
     saveSession({ username: uname, refresh_token: r.data.refresh_token });
+    // Ensure user exists in users table (self-heals missing rows)
+    sbFetch('/rest/v1/users', {
+      method: 'POST', prefer: 'return=minimal',
+      body: JSON.stringify({ username: uname }),
+    }).catch(() => {});
     showToast(`Welcome back, ${uname}!`);
     showScreen('home');
   }
@@ -2124,12 +2129,17 @@ async function sendFriendRequest() {
   if (!currentUser) return;
   const target = document.getElementById('friend-add-input').value.trim().toLowerCase();
   if (!target || target === currentUser.username) { showToast('Enter a valid username.'); return; }
+  if (!/^[a-z0-9_]+$/.test(target)) { showToast('Invalid username format.'); return; }
 
-  // Check user exists via auth users table using username metadata
-  const chk = await sbFetch(`/rest/v1/users?username=eq.${encodeURIComponent(target)}&select=username`);
-  if (!chk.ok || !chk.data?.length) { showToast(`User "${target}" not found.`); return; }
+  // Check user exists — try sessions, ratings, and users tables (any hit = user exists)
+  const checks = await Promise.all([
+    sbFetch(`/rest/v1/sessions?username=eq.${encodeURIComponent(target)}&select=username&limit=1`),
+    sbFetch(`/rest/v1/ratings?username=eq.${encodeURIComponent(target)}&select=username&limit=1`),
+    sbFetch(`/rest/v1/users?username=eq.${encodeURIComponent(target)}&select=username&limit=1`),
+  ]);
+  const exists = checks.some(r => r.ok && r.data?.length > 0);
+  if (!exists) { showToast(`User "${target}" not found.`); return; }
 
-  // Canonical ordering so (a,b) and (b,a) are the same row
   const [ua, ub] = [currentUser.username, target].sort();
   const r = await sbFetch('/rest/v1/friends', {
     method: 'POST', prefer: 'return=minimal',
@@ -2410,6 +2420,7 @@ function startDuelGame(duel, role) {
     rounds, currentRound: 0,
     scoreMe: 0, scoreOpp: 0,
     repResults: [],
+    myClicks: [],
     phase: 'waiting',
     transitionStart: null,
     animFrame: null,
@@ -2418,6 +2429,7 @@ function startDuelGame(duel, role) {
     earlyClickCount: 0,
     percOffset: 0,
     pollInterval: null,
+    resolveAttempts: 0,
   };
 
   // Update nav
@@ -2527,34 +2539,30 @@ async function recordDuelClick(raw, adjusted, offset) {
   if (duelState.animFrame) cancelAnimationFrame(duelState.animFrame);
 
   const rep = duelState.currentRound;
-  const round = duelState.rounds[rep];
 
   // Ripple
   const wrap = document.getElementById('duel-swatch-wrap');
-  const rect = wrap.getBoundingClientRect();
+  const sz = 60;
   const ripple = document.createElement('div');
   ripple.className = 'ripple';
-  const sz = 60;
-  // dummy event coords — use center
-  ripple.style.cssText = `width:${sz}px;height:${sz}px;left:${(rect.width-sz)/2}px;top:${(rect.height-sz)/2}px;`;
+  ripple.style.cssText = `width:${sz}px;height:${sz}px;left:${(wrap.offsetWidth-sz)/2}px;top:${(wrap.offsetHeight-sz)/2}px;`;
   wrap.appendChild(ripple);
   setTimeout(() => ripple.remove(), 600);
 
   document.getElementById('duel-game-msg').textContent = `${adjusted} ms`;
 
-  // Write click to DB — opponent poll will read this
-  const repTimes = duelState.repResults ? [...duelState.repResults] : [];
-  repTimes.push({ rep, player: duelState.role, raw, adjusted });
+  // Write ONLY our click to our own column — no read-modify-write, eliminates race condition
+  const myClicks = [...(duelState.myClicks || []), { rep, raw, adjusted }];
+  duelState.myClicks = myClicks;
 
+  const myCol = duelState.role === 'a' ? 'clicks_a' : 'clicks_b';
   await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
     method: 'PATCH', prefer: 'return=minimal',
-    body: JSON.stringify({ rep_times: JSON.stringify(repTimes) }),
+    body: JSON.stringify({ [myCol]: JSON.stringify(myClicks) }),
   });
 
-  duelState.repResults = repTimes;
-
-  // Wait briefly then check if opponent has also clicked this round
-  setTimeout(() => resolveRound(rep), 1200);
+  duelState.resolveAttempts = 0;
+  setTimeout(() => resolveRound(rep), 800);
 }
 
 function handleDuelClick(e) {
@@ -2614,37 +2622,66 @@ function triggerDuelFalseStart(reason, rawMs) {
 
 async function resolveRound(rep) {
   if (!duelState) return;
-  // Fetch latest duel state from DB to get opponent's click
-  const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=rep_times,score_a,score_b`);
+
+  // Fetch both players' click columns separately — no race condition possible
+  const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=clicks_a,clicks_b`);
   if (!r.ok || !r.data?.[0]) return;
 
-  const dbRepTimes = typeof r.data[0].rep_times === 'string'
-    ? JSON.parse(r.data[0].rep_times) : (r.data[0].rep_times || []);
+  const parse = v => {
+    if (!v) return [];
+    try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return []; }
+  };
 
-  const myClick   = dbRepTimes.find(t => t.rep === rep && t.player === duelState.role);
-  const oppRole   = duelState.role === 'a' ? 'b' : 'a';
-  const oppClick  = dbRepTimes.find(t => t.rep === rep && t.player === oppRole);
+  const clicksA = parse(r.data[0].clicks_a);
+  const clicksB = parse(r.data[0].clicks_b);
 
-  if (!myClick) return; // shouldn't happen
+  const myClicks  = duelState.role === 'a' ? clicksA : clicksB;
+  const oppClicks = duelState.role === 'a' ? clicksB : clicksA;
 
-  let roundWinner = null;
+  const myClick  = myClicks.find(c => c.rep === rep);
+  const oppClick = oppClicks.find(c => c.rep === rep);
+
+  if (!myClick) {
+    // Our own click isn't confirmed yet — retry briefly
+    if ((duelState.resolveAttempts || 0) < 5) {
+      duelState.resolveAttempts = (duelState.resolveAttempts || 0) + 1;
+      setTimeout(() => resolveRound(rep), 500);
+      return;
+    }
+  }
+
+  const oppRole = duelState.role === 'a' ? 'b' : 'a';
+  let roundWinner;
+
   if (myClick && oppClick) {
     roundWinner = myClick.adjusted <= oppClick.adjusted ? duelState.role : oppRole;
-  } else {
-    // Opponent hasn't clicked yet — wait a bit more then resolve with just our time
-    if (duelState.resolveAttempts < 10) {
+  } else if (!oppClick) {
+    // Opponent hasn't clicked — wait up to 8s then award round to us
+    if ((duelState.resolveAttempts || 0) < 8) {
       duelState.resolveAttempts = (duelState.resolveAttempts || 0) + 1;
       setTimeout(() => resolveRound(rep), 1000);
       return;
     }
-    roundWinner = duelState.role; // opponent timed out
+    roundWinner = duelState.role;
+  } else {
+    // We haven't clicked but opponent has — they win this round
+    roundWinner = oppRole;
   }
 
   duelState.resolveAttempts = 0;
   const iWon = roundWinner === duelState.role;
   if (iWon) duelState.scoreMe++; else duelState.scoreOpp++;
 
-  // Flash winner side
+  // Store rep result for breakdown screen
+  if (!duelState.repResults) duelState.repResults = [];
+  duelState.repResults.push({
+    rep,
+    myAdj: myClick?.adjusted ?? null,
+    myRaw: myClick?.raw ?? null,
+    oppAdj: oppClick?.adjusted ?? null,
+    iWon,
+  });
+
   document.getElementById('duel-score-me').textContent  = duelState.scoreMe;
   document.getElementById('duel-score-opp').textContent = duelState.scoreOpp;
   const flashEl = document.getElementById(iWon ? 'duel-p-me' : 'duel-p-opp');
@@ -2654,7 +2691,6 @@ async function resolveRound(rep) {
   updateDuelDots(rep, rep + 1);
   duelState.currentRound++;
 
-  // Check if match is over (first to 5, or 5 rounds done)
   if (duelState.scoreMe >= 5 || duelState.scoreOpp >= 5 || duelState.currentRound >= 5) {
     setTimeout(() => endDuel(), 1000);
   } else {
@@ -2683,16 +2719,16 @@ async function endDuel() {
   const won = duelState.scoreMe > duelState.scoreOpp;
   const lpDelta = won ? 30 : -10;
 
-  // Update LP
-  const myRating = await sbFetch(`/rest/v1/ratings?username=eq.${duelState.myName}&select=lp,wins,losses`);
+  // Update LP via upsert
+  const myRating = await sbFetch(`/rest/v1/ratings?username=eq.${encodeURIComponent(duelState.myName)}&select=lp,wins,losses`);
   const myLP  = myRating.data?.[0]?.lp ?? 0;
   const myW   = myRating.data?.[0]?.wins ?? 0;
   const myL   = myRating.data?.[0]?.losses ?? 0;
   const newLP = Math.max(0, myLP + lpDelta);
 
   await sbFetch('/rest/v1/ratings', {
-    method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
-    extraHeaders: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
     body: JSON.stringify({ username: duelState.myName, lp: newLP, wins: myW + (won?1:0), losses: myL + (won?0:1) }),
   });
 
@@ -2712,26 +2748,21 @@ async function endDuel() {
   badge.textContent = lpDelta >= 0 ? `+${lpDelta} LP` : `${lpDelta} LP`;
   badge.className = 'duel-lp-change ' + (lpDelta >= 0 ? 'win' : 'loss');
 
-  // Rep breakdown
+  // Rep breakdown using new repResults structure
   const repList = document.getElementById('duel-rep-list');
-  const oppRole = duelState.role === 'a' ? 'b' : 'a';
-  const allReps = duelState.repResults;
   repList.innerHTML = '';
-  for (let i = 0; i < duelState.currentRound; i++) {
-    const mine = allReps.find(r => r.rep === i && r.player === duelState.role);
-    const opp  = allReps.find(r => r.rep === i && r.player === oppRole);
-    const myMs  = mine?.adjusted ?? '—';
-    const oppMs = opp?.adjusted  ?? '—';
-    const iWon  = mine && opp ? mine.adjusted <= opp.adjusted : !!mine;
+  (duelState.repResults || []).forEach(rr => {
+    const myMs  = rr.myAdj  != null ? rr.myAdj  + ' ms' : '—';
+    const oppMs = rr.oppAdj != null ? rr.oppAdj + ' ms' : '—';
     const row = document.createElement('div');
     row.className = 'duel-rep-row';
     row.innerHTML = `
-      <span style="color:var(--muted)">Rd ${i+1}</span>
-      <span class="${iWon?'winner-tag':'loser-tag'}">${iWon?'✓':''} ${myMs} ms</span>
+      <span style="color:var(--muted)">Rd ${rr.rep + 1}</span>
+      <span class="${rr.iWon ? 'winner-tag' : 'loser-tag'}">${rr.iWon ? '✓ ' : ''}${myMs}</span>
       <span style="color:var(--muted)">vs</span>
-      <span class="${!iWon?'winner-tag':'loser-tag'}">${!iWon?'✓':''} ${oppMs} ms</span>`;
+      <span class="${!rr.iWon ? 'winner-tag' : 'loser-tag'}">${!rr.iWon ? '✓ ' : ''}${oppMs}</span>`;
     repList.appendChild(row);
-  }
+  });
 
   showScreen('duel-result');
   duelState = null;
@@ -2746,13 +2777,11 @@ async function forfeitDuel() {
       method: 'PATCH', prefer: 'return=minimal',
       body: JSON.stringify({ status: 'complete', score_a: 0, score_b: 0 }),
     });
-    // LP penalty
-    const myRating = await sbFetch(`/rest/v1/ratings?username=eq.${duelState.myName}&select=lp,losses`);
+    const myRating = await sbFetch(`/rest/v1/ratings?username=eq.${encodeURIComponent(duelState.myName)}&select=lp,losses`);
     const myLP = myRating.data?.[0]?.lp ?? 0;
     const myL  = myRating.data?.[0]?.losses ?? 0;
     await sbFetch('/rest/v1/ratings', {
       method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
-      extraHeaders: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ username: duelState.myName, lp: Math.max(0, myLP - 10), losses: myL + 1 }),
     });
     duelState = null;
