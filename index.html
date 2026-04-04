@@ -2623,64 +2623,97 @@ function triggerDuelFalseStart(reason, rawMs) {
 async function resolveRound(rep) {
   if (!duelState) return;
 
-  // Fetch both players' click columns separately — no race condition possible
-  const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=clicks_a,clicks_b`);
-  if (!r.ok || !r.data?.[0]) return;
-
-  const parse = v => {
-    if (!v) return [];
-    try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return []; }
-  };
-
-  const clicksA = parse(r.data[0].clicks_a);
-  const clicksB = parse(r.data[0].clicks_b);
-
-  const myClicks  = duelState.role === 'a' ? clicksA : clicksB;
-  const oppClicks = duelState.role === 'a' ? clicksB : clicksA;
-
-  const myClick  = myClicks.find(c => c.rep === rep);
-  const oppClick = oppClicks.find(c => c.rep === rep);
-
-  if (!myClick) {
-    // Our own click isn't confirmed yet — retry briefly
-    if ((duelState.resolveAttempts || 0) < 5) {
-      duelState.resolveAttempts = (duelState.resolveAttempts || 0) + 1;
-      setTimeout(() => resolveRound(rep), 500);
+  if (duelState.role === 'a') {
+    // ── PLAYER A: authoritative resolver ──────────────────
+    // Wait for both clicks to appear in the DB, then write the result
+    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=clicks_a,clicks_b`);
+    if (!r.ok || !r.data?.[0]) {
+      if ((duelState.resolveAttempts || 0) < 20) {
+        duelState.resolveAttempts++;
+        setTimeout(() => resolveRound(rep), 500);
+      }
       return;
     }
-  }
 
-  const oppRole = duelState.role === 'a' ? 'b' : 'a';
-  let roundWinner;
+    const parse = v => { try { return typeof v === 'string' ? JSON.parse(v) : (v || []); } catch { return []; } };
+    const clicksA = parse(r.data[0].clicks_a);
+    const clicksB = parse(r.data[0].clicks_b);
+    const clickA  = clicksA.find(c => c.rep === rep);
+    const clickB  = clicksB.find(c => c.rep === rep);
 
-  if (myClick && oppClick) {
-    roundWinner = myClick.adjusted <= oppClick.adjusted ? duelState.role : oppRole;
-  } else if (!oppClick) {
-    // Opponent hasn't clicked — wait up to 8s then award round to us
-    if ((duelState.resolveAttempts || 0) < 8) {
-      duelState.resolveAttempts = (duelState.resolveAttempts || 0) + 1;
-      setTimeout(() => resolveRound(rep), 1000);
-      return;
+    // Wait for B's click up to 12s
+    if (!clickA || !clickB) {
+      if ((duelState.resolveAttempts || 0) < 24) {
+        duelState.resolveAttempts++;
+        setTimeout(() => resolveRound(rep), 500);
+        return;
+      }
+      // Timeout — whoever clicked wins; if neither, A wins by default
     }
-    roundWinner = duelState.role;
+
+    // Determine winner
+    const aAdj = clickA?.adjusted ?? 99999;
+    const bAdj = clickB?.adjusted ?? 99999;
+    const winnerRole = aAdj <= bAdj ? 'a' : 'b';
+
+    // Write authoritative result to DB
+    const existingResults = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=round_results`);
+    const parse2 = v => { try { return typeof v === 'string' ? JSON.parse(v) : (v || []); } catch { return []; } };
+    const prevResults = parse2(existingResults.data?.[0]?.round_results);
+    const newResults = [...prevResults, { rep, winner: winnerRole, adj_a: clickA?.adjusted ?? null, adj_b: clickB?.adjusted ?? null }];
+
+    await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: JSON.stringify({ round_results: JSON.stringify(newResults) }),
+    });
+
+    duelState.resolveAttempts = 0;
+    applyRoundResult({ rep, winner: winnerRole, adj_a: clickA?.adjusted ?? null, adj_b: clickB?.adjusted ?? null });
+
   } else {
-    // We haven't clicked but opponent has — they win this round
-    roundWinner = oppRole;
-  }
+    // ── PLAYER B: poll for A's authoritative result ────────
+    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=round_results`);
+    if (!r.ok || !r.data?.[0]) {
+      if ((duelState.resolveAttempts || 0) < 30) {
+        duelState.resolveAttempts++;
+        setTimeout(() => resolveRound(rep), 500);
+      }
+      return;
+    }
 
-  duelState.resolveAttempts = 0;
-  const iWon = roundWinner === duelState.role;
+    const parse = v => { try { return typeof v === 'string' ? JSON.parse(v) : (v || []); } catch { return []; } };
+    const results = parse(r.data[0].round_results);
+    const result  = results.find(rr => rr.rep === rep);
+
+    if (!result) {
+      // A hasn't resolved yet — keep polling
+      if ((duelState.resolveAttempts || 0) < 30) {
+        duelState.resolveAttempts++;
+        setTimeout(() => resolveRound(rep), 500);
+        return;
+      }
+      // Absolute timeout — assume we lost this round to unstick
+      applyRoundResult({ rep, winner: 'a', adj_a: null, adj_b: null });
+      return;
+    }
+
+    duelState.resolveAttempts = 0;
+    applyRoundResult(result);
+  }
+}
+
+function applyRoundResult(result) {
+  if (!duelState) return;
+  const { rep, winner, adj_a, adj_b } = result;
+
+  const iWon = winner === duelState.role;
   if (iWon) duelState.scoreMe++; else duelState.scoreOpp++;
 
-  // Store rep result for breakdown screen
+  const myAdj  = duelState.role === 'a' ? adj_a : adj_b;
+  const oppAdj = duelState.role === 'a' ? adj_b : adj_a;
+
   if (!duelState.repResults) duelState.repResults = [];
-  duelState.repResults.push({
-    rep,
-    myAdj: myClick?.adjusted ?? null,
-    myRaw: myClick?.raw ?? null,
-    oppAdj: oppClick?.adjusted ?? null,
-    iWon,
-  });
+  duelState.repResults.push({ rep, myAdj, oppAdj, iWon });
 
   document.getElementById('duel-score-me').textContent  = duelState.scoreMe;
   document.getElementById('duel-score-opp').textContent = duelState.scoreOpp;
@@ -2690,6 +2723,7 @@ async function resolveRound(rep) {
 
   updateDuelDots(rep, rep + 1);
   duelState.currentRound++;
+  duelState.resolveAttempts = 0;
 
   if (duelState.scoreMe >= 5 || duelState.scoreOpp >= 5 || duelState.currentRound >= 5) {
     setTimeout(() => endDuel(), 1000);
@@ -2699,16 +2733,20 @@ async function resolveRound(rep) {
   }
 }
 
-// Poll for opponent updates
+// Poll just to detect if the duel was externally completed (forfeit etc)
 function startOpponentPoll() {
   clearInterval(duelState.pollInterval);
   duelState.pollInterval = setInterval(async () => {
-    if (!duelState) { clearInterval(duelState?.pollInterval); return; }
-    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=status,rep_times,score_a,score_b`);
+    if (!duelState) return;
+    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=status`);
     if (!r.ok || !r.data?.[0]) return;
-    const d = r.data[0];
-    if (d.status === 'complete') clearInterval(duelState.pollInterval);
-  }, 1500);
+    if (r.data[0].status === 'complete') {
+      clearInterval(duelState.pollInterval);
+      if (duelState.currentRound < 5 && duelState.scoreMe < 5 && duelState.scoreOpp < 5) {
+        endDuel(); // opponent forfeited
+      }
+    }
+  }, 3000);
 }
 
 async function endDuel() {
