@@ -2428,6 +2428,7 @@ function startDuelGame(duel, role) {
     animFrame: null,
     waitTimeout: null,
     syncInterval: null,
+    bMasterPoll: null,
     clickEnabled: false,
     earlyClickCount: 0,
     percOffset: 0,
@@ -2455,8 +2456,11 @@ function startDuelGame(duel, role) {
     });
   }
 
-  setTimeout(() => startDuelRound(), 1000);
-  startOpponentPoll();
+  setTimeout(() => {
+    startDuelRound();
+    if (role === 'b') startBMasterPoll();
+    else startOpponentPoll();
+  }, 1000);
 }
 
 // Seeded version for duels only — separate name to avoid shadowing the training version
@@ -2505,63 +2509,87 @@ function startDuelRound() {
   duelState.clickEnabled = false;
   duelState.earlyClickCount = 0;
   duelState.percOffset = round.offset;
-  duelState.transitionStart = null;
+  duelState.transitionEpoch = null;
 
   document.getElementById('duel-swatch').style.background = round.startColor;
   document.getElementById('duel-game-msg').textContent = 'Click the circle the moment you see it change';
 
   if (duelState.role === 'a') {
-    // A owns the clock — wait the seeded duration then write the transition start time to DB
+    // A owns the clock — wait the seeded duration then write transition start time
     duelState.waitTimeout = setTimeout(async () => {
       if (!duelState || duelState.phase !== 'waiting') return;
       const startEpoch = Date.now();
-      // Write to DB first, then start locally
       await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
         method: 'PATCH', prefer: 'return=minimal',
         body: JSON.stringify({ rep_start_at: startEpoch, current_rep: rep }),
       });
       beginDuelTransition(startEpoch);
     }, round.waitMs);
-  } else {
-    // B polls the DB for the transition start time A wrote
-    pollForTransitionStart(rep);
   }
+  // B does nothing here — the master poll loop handles everything for B
+}
+
+// B's single master poll loop — runs for the entire duel duration
+function startBMasterPoll() {
+  clearInterval(duelState.bMasterPoll);
+  let lastAppliedRep = -1;
+  let lastStartEpoch = null;
+
+  duelState.bMasterPoll = setInterval(async () => {
+    if (!duelState) return;
+
+    const r = await sbFetch(
+      `/rest/v1/duels?id=eq.${duelState.duelId}&select=current_rep,rep_start_at,round_results,status`
+    );
+    if (!r.ok || !r.data?.[0]) return;
+    const { current_rep, rep_start_at, round_results, status } = r.data[0];
+
+    const parse = v => { try { return typeof v === 'string' ? JSON.parse(v) : (v || []); } catch { return []; } };
+    const results = parse(round_results);
+
+    // 1. If A wrote a new transition start for a round we're waiting on — fire it
+    if (
+      duelState.phase === 'waiting' &&
+      current_rep === duelState.currentRound &&
+      rep_start_at &&
+      rep_start_at !== lastStartEpoch
+    ) {
+      lastStartEpoch = rep_start_at;
+      beginDuelTransition(rep_start_at);
+    }
+
+    // 2. If A wrote a round result we haven't applied yet — apply it
+    const result = results.find(rr => rr.rep === duelState.currentRound && rr.rep > lastAppliedRep);
+    if (result && (duelState.phase === 'done' || duelState.phase === 'changing' || duelState.phase === 'waiting')) {
+      lastAppliedRep = result.rep;
+      clearInterval(duelState.bMasterPoll);
+      applyRoundResult(result);
+    }
+
+    // 3. Duel marked complete externally (forfeit)
+    if (status === 'complete' && duelState.currentRound < 5) {
+      clearInterval(duelState.bMasterPoll);
+      endDuel();
+    }
+  }, 300);
 }
 
 function pollForTransitionStart(rep) {
-  if (!duelState) return;
-  clearInterval(duelState.syncInterval);
-  duelState.syncInterval = setInterval(async () => {
-    if (!duelState || duelState.phase !== 'waiting') {
-      clearInterval(duelState.syncInterval);
-      return;
-    }
-    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=rep_start_at,current_rep`);
-    if (!r.ok || !r.data?.[0]) return;
-    const { rep_start_at, current_rep } = r.data[0];
-    // Only proceed if this is the start signal for the current rep
-    if (current_rep !== rep || !rep_start_at) return;
-    clearInterval(duelState.syncInterval);
-    beginDuelTransition(rep_start_at);
-  }, 200); // poll every 200ms for tight sync
+  // No-op — B now uses startBMasterPoll instead
 }
 
 function beginDuelTransition(startEpoch) {
   if (!duelState || duelState.phase !== 'waiting') return;
   duelState.phase = 'changing';
-  duelState.transitionEpoch = startEpoch; // shared absolute timestamp
+  duelState.transitionEpoch = startEpoch;
   duelState.clickEnabled = true;
-
-  // If the transition already started some ms ago (latency on B's side),
-  // jump the animation to the correct position immediately
-  const alreadyElapsed = Date.now() - startEpoch;
-  animateDuelTransition(alreadyElapsed);
+  animateDuelTransition();
 }
 
-function animateDuelTransition(startOffset = 0) {
+function animateDuelTransition() {
   if (!duelState || duelState.phase !== 'changing') return;
   const round = duelState.rounds[duelState.currentRound];
-  const elapsed = (Date.now() - duelState.transitionEpoch);
+  const elapsed = Date.now() - duelState.transitionEpoch;
   const t = Math.min(elapsed / duelState.diff.transitionDuration, 1);
   document.getElementById('duel-swatch').style.background = lerpHex(round.startColor, round.endColor, t);
   if (t < 1) duelState.animFrame = requestAnimationFrame(() => animateDuelTransition());
@@ -2760,9 +2788,21 @@ function applyRoundResult(result) {
 
   if (duelState.scoreMe >= 5 || duelState.scoreOpp >= 5 || duelState.currentRound >= 5) {
     setTimeout(() => endDuel(), 1000);
-  } else {
-    document.getElementById('duel-swatch').style.background = duelState.rounds[duelState.currentRound - 1].endColor;
+    return;
+  }
+
+  // Prep the swatch for the next round
+  document.getElementById('duel-swatch').style.background = duelState.rounds[duelState.currentRound - 1].endColor;
+
+  if (duelState.role === 'a') {
+    // A drives the next round
     setTimeout(() => startDuelRound(), 1400);
+  } else {
+    // B restarts master poll to pick up A's next round signals
+    setTimeout(() => {
+      startDuelRound(); // resets B's local state (phase, colour etc)
+      startBMasterPoll();
+    }, 1400);
   }
 }
 
@@ -2785,6 +2825,7 @@ function startOpponentPoll() {
 async function endDuel() {
   if (!duelState) return;
   clearInterval(duelState.pollInterval);
+  clearInterval(duelState.bMasterPoll);
   clearInterval(duelPollInterval);
 
   const won = duelState.scoreMe > duelState.scoreOpp;
@@ -2845,6 +2886,7 @@ async function forfeitDuel() {
     cancelAnimationFrame(duelState.animFrame);
     clearInterval(duelState.pollInterval);
     clearInterval(duelState.syncInterval);
+    clearInterval(duelState.bMasterPoll);
     await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
       method: 'PATCH', prefer: 'return=minimal',
       body: JSON.stringify({ status: 'complete', score_a: 0, score_b: 0 }),
