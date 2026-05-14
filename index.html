@@ -1599,9 +1599,11 @@ function endGame() {
       avg_raw: avgRaw,
       times_adjusted: times.map(t => t.adjusted),
       times_raw: times.map(t => t.raw),
-      difficulty: gameState.diffId || 'hard',
+      difficulty: gameState.diffId || 'easy',
     }),
-  }).catch(e => console.error('Save error', e));
+  }).then(r => {
+    if (!r.ok) console.error('Session save failed:', r.status, JSON.stringify(r.data));
+  }).catch(e => console.error('Session save error:', e));
 
   const diff = DIFFICULTIES[gameState.diffId] || DIFFICULTIES.hard;
   document.getElementById('results-user-line').textContent = currentUser
