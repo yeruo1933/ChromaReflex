@@ -2424,9 +2424,10 @@ function startDuelGame(duel, role) {
     repResults: [],
     myClicks: [],
     phase: 'waiting',
-    transitionStart: null,
+    transitionEpoch: null,
     animFrame: null,
     waitTimeout: null,
+    syncInterval: null,
     clickEnabled: false,
     earlyClickCount: 0,
     percOffset: 0,
@@ -2504,34 +2505,66 @@ function startDuelRound() {
   duelState.clickEnabled = false;
   duelState.earlyClickCount = 0;
   duelState.percOffset = round.offset;
+  duelState.transitionStart = null;
 
   document.getElementById('duel-swatch').style.background = round.startColor;
   document.getElementById('duel-game-msg').textContent = 'Click the circle the moment you see it change';
 
-  duelState.waitTimeout = setTimeout(() => beginDuelTransition(), round.waitMs);
-
-  // Also submit our "ready" time to DB so opponent can sync
-  sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
-    method: 'PATCH', prefer: 'return=minimal',
-    body: JSON.stringify({ current_rep: rep }),
-  });
+  if (duelState.role === 'a') {
+    // A owns the clock — wait the seeded duration then write the transition start time to DB
+    duelState.waitTimeout = setTimeout(async () => {
+      if (!duelState || duelState.phase !== 'waiting') return;
+      const startEpoch = Date.now();
+      // Write to DB first, then start locally
+      await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
+        method: 'PATCH', prefer: 'return=minimal',
+        body: JSON.stringify({ rep_start_at: startEpoch, current_rep: rep }),
+      });
+      beginDuelTransition(startEpoch);
+    }, round.waitMs);
+  } else {
+    // B polls the DB for the transition start time A wrote
+    pollForTransitionStart(rep);
+  }
 }
 
-function beginDuelTransition() {
+function pollForTransitionStart(rep) {
+  if (!duelState) return;
+  clearInterval(duelState.syncInterval);
+  duelState.syncInterval = setInterval(async () => {
+    if (!duelState || duelState.phase !== 'waiting') {
+      clearInterval(duelState.syncInterval);
+      return;
+    }
+    const r = await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}&select=rep_start_at,current_rep`);
+    if (!r.ok || !r.data?.[0]) return;
+    const { rep_start_at, current_rep } = r.data[0];
+    // Only proceed if this is the start signal for the current rep
+    if (current_rep !== rep || !rep_start_at) return;
+    clearInterval(duelState.syncInterval);
+    beginDuelTransition(rep_start_at);
+  }, 200); // poll every 200ms for tight sync
+}
+
+function beginDuelTransition(startEpoch) {
   if (!duelState || duelState.phase !== 'waiting') return;
   duelState.phase = 'changing';
-  duelState.transitionStart = performance.now();
+  duelState.transitionEpoch = startEpoch; // shared absolute timestamp
   duelState.clickEnabled = true;
-  animateDuelTransition();
+
+  // If the transition already started some ms ago (latency on B's side),
+  // jump the animation to the correct position immediately
+  const alreadyElapsed = Date.now() - startEpoch;
+  animateDuelTransition(alreadyElapsed);
 }
 
-function animateDuelTransition() {
+function animateDuelTransition(startOffset = 0) {
   if (!duelState || duelState.phase !== 'changing') return;
   const round = duelState.rounds[duelState.currentRound];
-  const elapsed = performance.now() - duelState.transitionStart;
+  const elapsed = (Date.now() - duelState.transitionEpoch);
   const t = Math.min(elapsed / duelState.diff.transitionDuration, 1);
   document.getElementById('duel-swatch').style.background = lerpHex(round.startColor, round.endColor, t);
-  if (t < 1) duelState.animFrame = requestAnimationFrame(animateDuelTransition);
+  if (t < 1) duelState.animFrame = requestAnimationFrame(() => animateDuelTransition());
 }
 
 async function recordDuelClick(raw, adjusted, offset) {
@@ -2570,23 +2603,20 @@ async function recordDuelClick(raw, adjusted, offset) {
 function handleDuelClick(e) {
   if (!duelState) return;
 
-  // Pre-transition click (waiting phase) → 1s cooldown, no restart
   if (duelState.phase === 'waiting') {
     triggerDuelFalseStart('early');
     return;
   }
   if (!duelState.clickEnabled) return;
 
-  const rawMs = Math.round(performance.now() - duelState.transitionStart);
+  // Measure against the shared epoch so both players use the same t=0
+  const rawMs = Math.max(0, Date.now() - duelState.transitionEpoch);
   const offset = duelState.percOffset || 0;
 
-  // Sub-offset click during transition:
-  // Player may genuinely see something the model missed — accept raw immediately, no offset
   if (rawMs < offset) {
     triggerDuelFalseStart('suboffset', rawMs);
     return;
   }
-
   recordDuelClick(rawMs, rawMs - offset, offset);
 }
 
@@ -2726,6 +2756,7 @@ function applyRoundResult(result) {
   updateDuelDots(rep, rep + 1);
   duelState.currentRound++;
   duelState.resolveAttempts = 0;
+  clearInterval(duelState.syncInterval);
 
   if (duelState.scoreMe >= 5 || duelState.scoreOpp >= 5 || duelState.currentRound >= 5) {
     setTimeout(() => endDuel(), 1000);
@@ -2813,6 +2844,7 @@ async function forfeitDuel() {
     clearTimeout(duelState.waitTimeout);
     cancelAnimationFrame(duelState.animFrame);
     clearInterval(duelState.pollInterval);
+    clearInterval(duelState.syncInterval);
     await sbFetch(`/rest/v1/duels?id=eq.${duelState.duelId}`, {
       method: 'PATCH', prefer: 'return=minimal',
       body: JSON.stringify({ status: 'complete', score_a: 0, score_b: 0 }),
